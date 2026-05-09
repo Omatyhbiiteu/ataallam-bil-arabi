@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://et3alem-bel-araby.com/sitemap.xml

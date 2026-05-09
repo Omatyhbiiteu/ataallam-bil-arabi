@@ -1,0 +1,31 @@
+# Monorepo root — يطبَّق على كل المجلدات الفرعية
+
+# تبعيات Node (كل الأماكن)
+**/node_modules/
+
+# مخرجات البناء (Vite / إلخ)
+**/dist/
+**/dist-ssr/
+
+# Laravel — vendor والبيئة (backend له .gitignore أيضاً؛ هذا للاحتياط)
+**/vendor/
+backend/.env
+backend/.env.*
+
+# أسرار وأدوات محلية في الواجهات
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# سجلات وأنظمة
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.sw?

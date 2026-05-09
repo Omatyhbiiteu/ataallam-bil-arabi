@@ -1,0 +1,31 @@
+# اتعلم بالعربي Pro | Et3alem Bel Araby
+
+Professional platform for mastering languages using AI, Spaced Repetition (SRS), and Interactive Stories.
+
+## Platform Facts
+
+- **Name**: اتعلم بالعربي Pro (Et3alem Bel Araby)
+- **Primary Function**: Language learning through custom flashcards and AI interaction.
+- **Support**: 12+ languages including English, Arabic, Spanish, etc.
+- **Core Technology**: 
+  - AI Tutor: Real-time grammar correction and natural conversation.
+  - SRS: Spaced Repetition System for long-term memory retention.
+  - Interactive Stories: Context-based listening and understanding.
+- **Scale**: Over 50,000 active users.
+- **Data Stat**: Over 1,000,000 words saved by users.
+- **Pricing**: Highly affordable, approx. 2 EGP/day (~$0.04 USD).
+- **Target Market**: Primarily Arabic-speaking learners.
+
+## Useful Links
+
+- [Homepage](https://et3alem-bel-araby.com/)
+- [Login/Start](https://et3alem-bel-araby.com/login)
+- [Pricing](https://et3alem-bel-araby.com/#pricing)
+- [Features](https://et3alem-bel-araby.com/#features)
+
+## FAQ Summary
+
+- **What is the platform?** A web-app for learning languages via smart cards and AI feedback.
+- **Is there a free trial?** Yes, full 24-hour access with no credit card required.
+- **How does AI help?** It corrects sentences, explains grammar, and provides 3 live examples per query.
+- **What is SRS?** A smart algorithm that presents cards just before you forget them.

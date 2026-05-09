@@ -1,0 +1,32 @@
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '');
+  const backendProxyTarget = env.VITE_BACKEND_PROXY_URL || 'http://127.0.0.1:5000';
+  return {
+    base: '/admin/',
+    server: {
+      open: false,
+      port: 3001,
+      /** نفس المنشأ: المتصفح يطلب `/api` من منفذ Vite، والـ proxy يمرّرها إلى Laravel — يُزيل مشاكل CORS بين localhost و127.0.0.1 */
+      proxy: {
+        '/api': {
+          target: backendProxyTarget,
+          changeOrigin: true,
+        },
+      },
+    },
+    plugins: [react()],
+    define: {
+      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+    },
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      }
+    }
+  };
+});
