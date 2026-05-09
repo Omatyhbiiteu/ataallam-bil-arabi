@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const backendProxyTarget = env.VITE_BACKEND_PROXY_URL || 'http://127.0.0.1:5000';
+  const previewPort = Number.parseInt(process.env.PORT ?? '', 10);
+  const previewPortResolved =
+    Number.isFinite(previewPort) && previewPort > 0 ? previewPort : 4173;
   return {
     base: '/admin/',
     server: {
@@ -18,11 +21,11 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    /** معاينة الإنتاج (Railway وغيره): منفذ PORT، كل الواجهات، بدون فتح متصفح على السيرفر، وعدم حظر hostname المنصة */
+    /** معاينة الإنتاج (Railway وغيره): 0.0.0.0 + PORT من المنصة، بدون xdg-open، وعدم حظر hostname */
     preview: {
       open: false,
-      host: true,
-      port: Number(process.env.PORT) || 4173,
+      host: '0.0.0.0',
+      port: previewPortResolved,
       strictPort: true,
       allowedHosts: true,
     },
