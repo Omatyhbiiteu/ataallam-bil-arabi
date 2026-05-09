@@ -107,7 +107,10 @@ export const AuthAPI = {
     markNotificationsRead: (ids: string[]) =>
         fetchApi("/auth/notifications/read", { method: "PUT", body: JSON.stringify({ ids }) }),
     me: () => fetchApi("/auth/me"),
-    adminLogin: (body: any) => fetchApi("/admin/auth/login", { method: "POST", body: JSON.stringify(body) })
+    adminLogin: (body: any) => fetchApi("/admin/auth/login", { method: "POST", body: JSON.stringify(body) }),
+    /** طلب استعادة كلمة المرور — يُرسل للمسؤول (بدون تسجيل دخول) */
+    submitPasswordRecoveryRequest: (body: { full_name: string; email: string; phone: string }) =>
+        fetchApi("/password-recovery-requests", { method: "POST", body: JSON.stringify(body) }),
 };
 
 // ----------------------------------------------------

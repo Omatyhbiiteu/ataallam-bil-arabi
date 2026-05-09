@@ -13,7 +13,16 @@ interface UseAppAuthProps {
 export function useAppAuth({ onLoginNavigate, onLogoutNavigate, showToast, addNotification }: UseAppAuthProps) {
     // --- AUTH STATE ---
     const [currentUser, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
-    const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>('landing');
+    const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password' | 'reset-password'>(() => {
+        if (typeof window === 'undefined') return 'landing';
+        try {
+            const p = new URLSearchParams(window.location.search);
+            if (p.get('token') && p.get('email')) return 'reset-password';
+        } catch {
+            /* ignore */
+        }
+        return 'landing';
+    });
     const [showOnboarding, setShowOnboarding] = useState(false);
 
     // --- HANDLERS ---

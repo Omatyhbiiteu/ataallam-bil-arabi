@@ -220,8 +220,11 @@ export const AdminAPI = {
         fetchApi(
             `/admin/analytics/dashboard${lang != null && lang !== "" ? `?lang=${encodeURIComponent(lang)}` : ""}`
         ),
+    /** طلبات «نسيت كلمة المرور» المرسلة من التطبيق */
+    getPasswordRecoveryRequests: () => fetchApi("/admin/password-recovery-requests"),
+
     getUsersList: () => fetchApi("/admin/users"),
-    updateUserPlan: (id: string, plan: 'free' | 'pro' | 'enterprise') =>
+    updateUserPlan: (id: string, plan: 'free' | 'silver' | 'pro' | 'enterprise') =>
         fetchApi(`/admin/users/${id}/plan`, { method: "PUT", body: JSON.stringify({ plan }) }),
     toggleUserFreeze: (id: string) =>
         fetchApi(`/admin/users/${id}/toggle-freeze`, { method: "PUT" }),

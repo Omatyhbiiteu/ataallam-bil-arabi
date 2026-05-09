@@ -89,14 +89,15 @@ export const PaymentSettingsTab = () => {
                                 <input
                                     type="number"
                                     disabled={settingsLoading}
-                                    value={paymentSettings.price || 50}
+                                    value={paymentSettings.price || 99}
                                     onChange={(e) => {
                                         const newPrice = Number(e.target.value);
                                         setPaymentSettings({
                                             ...paymentSettings,
                                             price: newPrice,
-                                            // Automatically update the first plan's price to keep things in sync for simple setups
-                                            plans: paymentSettings.plans.map((p, i) => i === 0 ? { ...p, price: newPrice } : p)
+                                            plans: paymentSettings.plans.map((p) =>
+                                                p.id === 'pro' ? { ...p, price: newPrice } : p
+                                            ),
                                         });
                                     }}
                                     className="w-24 bg-transparent text-white font-black text-2xl outline-none focus:text-emerald-500 transition-colors"

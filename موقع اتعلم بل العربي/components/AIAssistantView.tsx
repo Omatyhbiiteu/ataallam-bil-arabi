@@ -17,6 +17,8 @@ interface AIAssistantViewProps {
     targetLanguage?: 'en' | 'de';
     userImage?: string | null;
     userName?: string;
+    userId?: string;
+    subscriptionPlan?: 'free' | 'silver' | 'pro' | 'enterprise';
     studyPlan?: any;
     setStudyPlan?: (plan: any) => void;
     /** إن كان false تُطبَّق حدود المجانية (محادثة 10 جمل، وقف الصوتي/الخطة). الافتراضي true لعدم كسر أي استدعاء قديم. */
@@ -27,6 +29,41 @@ interface AIAssistantViewProps {
 type Mode = 'chat' | 'voice' | 'plan';
 
 const FREE_CHAT_USER_MESSAGES = 10;
+
+type DailyAiUsage = { texts: number; voiceSec: number };
+
+function aiDailyUsageKey(userId: string) {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `ai_daily_quota_v1_${userId}_${y}-${m}-${day}`;
+}
+
+function readDailyUsage(userId: string): DailyAiUsage {
+    try {
+        const raw = localStorage.getItem(aiDailyUsageKey(userId));
+        if (!raw) return { texts: 0, voiceSec: 0 };
+        const p = JSON.parse(raw);
+        return {
+            texts: typeof p.texts === 'number' ? p.texts : 0,
+            voiceSec: typeof p.voiceSec === 'number' ? p.voiceSec : 0,
+        };
+    } catch {
+        return { texts: 0, voiceSec: 0 };
+    }
+}
+
+function writeDailyUsage(userId: string, u: DailyAiUsage) {
+    localStorage.setItem(aiDailyUsageKey(userId), JSON.stringify(u));
+}
+
+/** حدود يومية للباقات المدفوعة (تُحسب بتوقيت الجهاز) */
+function paidTierDailyLimits(plan: string): { maxTexts: number; maxVoiceSec: number } | null {
+    if (plan === 'silver') return { maxTexts: 70, maxVoiceSec: 10 * 60 };
+    if (plan === 'pro' || plan === 'enterprise') return { maxTexts: 150, maxVoiceSec: 20 * 60 };
+    return null;
+}
 
 const MIC_PERMISSION_GUIDE_AR =
  'لم يُمنح إذن الميكروفون بعد. لاستخدام المعلم الصوتي، منح الأذونات كالتالي:\n\n' +
@@ -69,11 +106,38 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
     targetLanguage = 'en',
     userImage,
     userName,
+    userId,
+    subscriptionPlan = 'free',
     studyPlan,
     setStudyPlan,
     isProSubscriber = true,
     onRequirePro,
 }) => {
+    const quotaUserKey = userId || '_local';
+    const paidDailyLimits = useMemo(() => {
+        if (!isProSubscriber) return null;
+        return paidTierDailyLimits(subscriptionPlan);
+    }, [isProSubscriber, subscriptionPlan]);
+
+    /** يزيد بعد كل تحديث لحصة اليوم في localStorage حتى تُحدَّث لوحة «ملخص الجلسة» فوراً */
+    const [quotaVersion, setQuotaVersion] = useState(0);
+    const dailyUsage = useMemo(() => readDailyUsage(quotaUserKey), [quotaUserKey, quotaVersion]);
+
+    const voiceQuotaExceeded = Boolean(
+        paidDailyLimits && dailyUsage.voiceSec >= paidDailyLimits.maxVoiceSec
+    );
+
+    const assistantPlanBadge = useMemo(() => {
+        if (!isProSubscriber) return null;
+        if (subscriptionPlan === 'silver') {
+            return { text: 'SILVER', className: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/40 dark:text-violet-200 dark:border-violet-700' };
+        }
+        if (subscriptionPlan === 'enterprise') {
+            return { text: 'ENTERPRISE', className: 'bg-slate-200 text-slate-800 border-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-500' };
+        }
+        return { text: 'PRO', className: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-200 dark:border-indigo-700' };
+    }, [isProSubscriber, subscriptionPlan]);
+
     // --- STATE ---
     const [mode, setMode] = useState<Mode>(() => (isProSubscriber ? 'voice' : 'chat'));
     const [messages, setMessages] = useState<Message[]>([]);
@@ -119,6 +183,10 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
         [isProSubscriber, mode]
     );
 
+    const chatQuotaExceeded = Boolean(
+        paidDailyLimits && assistantMode === 'chat' && dailyUsage.texts >= paidDailyLimits.maxTexts
+    );
+
     // Sync from global study plan if mode changes to plan
     useEffect(() => {
         if (mode === 'plan' && studyPlan && planStep === 0) {
@@ -133,7 +201,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
         if (intent === 'plan') {
             localStorage.removeItem('ai_assistant_intent');
             if (!isProSubscriber) {
-                onRequirePro?.('خطة المذاكرة الذكية متاحة لمشتركي برو فقط.');
+                onRequirePro?.('خطة المذاكرة الذكية متاحة للمشتركين (سيلفر وبرو).');
                 return;
             }
             setMode('plan');
@@ -327,7 +395,11 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
     const toggleListening = async () => {
         setVoiceError(null);
         if (!isProSubscriber) {
-            onRequirePro?.('المعلم الصوتي متاح لمشتركي برو فقط.');
+            onRequirePro?.('المعلم الصوتي متاح للمشتركين (سيلفر وبرو).');
+            return;
+        }
+        if (voiceQuotaExceeded && !isListening) {
+            onRequirePro?.('وصلت اليوم لحد المدة المسموحة للمعلم الصوتي حسب باقتك. يُعاد العد غداً.');
             return;
         }
         if (isListening) {
@@ -400,6 +472,27 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
             }
         }
 
+        const turnStart = Date.now();
+
+        if (paidDailyLimits && assistantMode === 'chat') {
+            const u = readDailyUsage(quotaUserKey);
+            if (u.texts >= paidDailyLimits.maxTexts) {
+                onRequirePro?.(
+                    `وصلت اليوم لحد ${paidDailyLimits.maxTexts} رسائل للذكاء الاصطناعي حسب باقتك. يُعاد العد غداً.`
+                );
+                return;
+            }
+        }
+        if (paidDailyLimits && assistantMode === 'voice') {
+            const u = readDailyUsage(quotaUserKey);
+            if (u.voiceSec >= paidDailyLimits.maxVoiceSec) {
+                onRequirePro?.(
+                    'وصلت اليوم لحد المدة المسموحة للمحادثة الصوتية مع المعلم الذكي. يُعاد العد غداً.'
+                );
+                return;
+            }
+        }
+
         // Optimistic UI Update
         setAnalysisResult(null);
         setAnalysisError(null);
@@ -441,6 +534,19 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
 
             const aiMsg: Message = { id: crypto.randomUUID(), text: response, sender: 'ai', timestamp: new Date() };
             setMessages(prev => [...prev, aiMsg]);
+
+            if (paidDailyLimits && assistantMode === 'chat') {
+                const u = readDailyUsage(quotaUserKey);
+                writeDailyUsage(quotaUserKey, { ...u, texts: u.texts + 1 });
+                setQuotaVersion((v) => v + 1);
+            }
+            if (paidDailyLimits && assistantMode === 'voice') {
+                const elapsed = Math.min(600, Math.max(1, Math.round((Date.now() - turnStart) / 1000)));
+                const u = readDailyUsage(quotaUserKey);
+                const nextVoice = Math.min(paidDailyLimits.maxVoiceSec, u.voiceSec + elapsed);
+                writeDailyUsage(quotaUserKey, { ...u, voiceSec: nextVoice });
+                setQuotaVersion((v) => v + 1);
+            }
 
             // Auto-Speak in Voice Mode
             if (assistantMode === 'voice') {
@@ -509,7 +615,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
     const renderPlanMode: () => React.JSX.Element = () => {
         const handleGeneratePlan = async () => {
             if (!isProSubscriber) {
-                onRequirePro?.('خطة المذاكرة الذكية متاحة لمشتركي برو فقط.');
+                onRequirePro?.('خطة المذاكرة الذكية متاحة للمشتركين (سيلفر وبرو).');
                 return;
             }
             setIsGeneratingPlan(true);
@@ -963,6 +1069,25 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                 </button>
             </div>
 
+            {paidDailyLimits && (
+                <div className="mb-4 rounded-2xl border border-amber-200/50 dark:border-amber-500/25 bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3 text-right">
+                    <p className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider mb-2">حدود باقتك اليوم (تُعاد منتصف الليل بتوقيت جهازك)</p>
+                    <div className="space-y-1.5 text-xs font-bold text-gray-800 dark:text-gray-200">
+                        <p>
+                            <span className="text-gray-500 dark:text-gray-400">محادثة حرة:</span>{' '}
+                            {dailyUsage.texts} / {paidDailyLimits.maxTexts} رسالة
+                        </p>
+                        <p>
+                            <span className="text-gray-500 dark:text-gray-400">المعلم الصوتي:</span>{' '}
+                            {Math.min(Math.ceil(dailyUsage.voiceSec / 60), paidDailyLimits.maxVoiceSec / 60)} /{' '}
+                            {paidDailyLimits.maxVoiceSec / 60} دقيقة
+                            <span className="text-[10px] text-gray-400 font-medium mr-1">(تقريب من مدة جولات الصوت)</span>
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <p className="text-[10px] text-gray-400 font-bold mb-2">هذه الجلسة الحالية</p>
             <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="bg-white/80 dark:bg-black/40 rounded-2xl p-3 border border-stone-100 dark:border-white/10">
                     <p className="text-[10px] text-gray-400 font-bold">الرسائل</p>
@@ -973,7 +1098,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                     <p className="text-lg font-black text-gray-800 dark:text-white">{userWordCount}</p>
                 </div>
                 <div className="bg-white/80 dark:bg-black/40 rounded-2xl p-3 border border-stone-100 dark:border-white/10">
-                    <p className="text-[10px] text-gray-400 font-bold">المدة</p>
+                    <p className="text-[10px] text-gray-400 font-bold">مدة الجلسة</p>
                     <p className="text-lg font-black text-gray-800 dark:text-white">{sessionDurationMinutes} د</p>
                 </div>
             </div>
@@ -1094,7 +1219,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                             </div>
                             <div>
                                 <h3 className="font-extrabold text-lg md:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300">
-                                    اتعلم بالعربي <span className="hidden md:inline text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full align-middle ml-2 border border-indigo-200">PRO</span>
+                                    اتعلم بالعربي{' '}
+                                    {assistantPlanBadge && (
+                                        <span
+                                            className={`hidden md:inline text-xs px-2 py-0.5 rounded-full align-middle ml-2 border font-black ${assistantPlanBadge.className}`}
+                                        >
+                                            {assistantPlanBadge.text}
+                                        </span>
+                                    )}
                                 </h3>
                                 <div className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-indigo-500 dark:text-indigo-400 mt-0.5">
                                     <Zap size={10} className="fill-current" />
@@ -1271,7 +1403,22 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                     : `المحادثة الحرة: ${userMessages.length} / ${FREE_CHAT_USER_MESSAGES} جمل في هذه الجلسة`}
                             </p>
                         )}
-                        <div className={`flex items-end gap-2 md:gap-3 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] p-2 md:p-3 shadow-xl shadow-stone-200/50 dark:shadow-none focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all duration-300 ${freeChatBlocked ? 'opacity-60' : ''}`}>
+                        {isProSubscriber && paidDailyLimits && assistantMode === 'chat' && (
+                            <p
+                                className={`text-center text-[11px] md:text-xs font-bold mb-2 md:mb-3 px-2 ${
+                                    chatQuotaExceeded
+                                        ? 'text-rose-600 dark:text-rose-400'
+                                        : 'text-indigo-700 dark:text-indigo-300'
+                                }`}
+                            >
+                                {chatQuotaExceeded
+                                    ? `وصلت اليوم لحد ${paidDailyLimits.maxTexts} رسالة في المحادثة الحرة. يُعاد العد غداً.`
+                                    : `المحادثة الحرة اليوم: ${dailyUsage.texts} / ${paidDailyLimits.maxTexts} رسالة`}
+                            </p>
+                        )}
+                        <div
+                            className={`flex items-end gap-2 md:gap-3 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] p-2 md:p-3 shadow-xl shadow-stone-200/50 dark:shadow-none focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all duration-300 ${freeChatBlocked || chatQuotaExceeded ? 'opacity-60' : ''}`}
+                        >
                             <textarea
                                 value={inputText}
                                 onChange={e => setInputText(e.target.value)}
@@ -1284,7 +1431,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                 dir={conversationDir}
                                 lang={conversationLang}
                                 placeholder={inputPlaceholder}
-                                disabled={freeChatBlocked}
+                                disabled={freeChatBlocked || chatQuotaExceeded}
                                 className="flex-1 bg-transparent border-none outline-none text-gray-800 dark:text-white placeholder:text-gray-400 font-medium resize-none py-2 md:py-3.5 max-h-32 custom-scrollbar text-base md:text-lg text-left disabled:cursor-not-allowed"
                                 rows={1}
                                 style={{ minHeight: '48px' }}
@@ -1293,7 +1440,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                             <button
                                 type="button"
                                 onClick={handleSendMessage}
-                                disabled={freeChatBlocked || !inputText.trim() || isTyping}
+                                disabled={freeChatBlocked || chatQuotaExceeded || !inputText.trim() || isTyping}
                                 aria-label="إرسال الرسالة"
                                 className="p-2 md:p-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl md:rounded-2xl shadow-lg shadow-indigo-500/20 transition-all transform hover:scale-105 active:scale-95 flex-shrink-0"
                             >
@@ -1377,8 +1524,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                             if ((m.id === 'voice' || m.id === 'plan') && !isProSubscriber) {
                                 onRequirePro?.(
                                     m.id === 'voice'
-                                        ? 'المعلم الصوتي متاح لمشتركي برو فقط.'
-                                        : 'خطة المذاكرة الذكية متاحة لمشتركي برو فقط.'
+                                        ? 'المعلم الصوتي متاح للمشتركين (سيلفر وبرو).'
+                                        : 'خطة المذاكرة الذكية متاحة للمشتركين (سيلفر وبرو).'
                                 );
                                 return;
                             }
@@ -1394,7 +1541,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                         <m.icon size={18} />
                         <span className="hidden md:inline">{m.label}</span>
                         {(m.id === 'voice' || m.id === 'plan') && !isProSubscriber && (
-                            <span className="hidden sm:inline text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">Pro</span>
+                            <span className="hidden sm:inline text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">+</span>
                         )}
                     </button>
                 ))}
@@ -1462,6 +1609,13 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                         {voiceError}
                     </p>
                 )}
+                {paidDailyLimits && (
+                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300 mt-4 max-w-lg mx-auto px-4">
+                        المعلم الصوتي اليوم:{' '}
+                        {Math.min(Math.ceil(dailyUsage.voiceSec / 60), paidDailyLimits.maxVoiceSec / 60)} /{' '}
+                        {paidDailyLimits.maxVoiceSec / 60} دقيقة (تقريب من مدة الجولات)
+                    </p>
+                )}
             </div>
 
             {/* Mic Button */}
@@ -1470,10 +1624,10 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                 whileHover={{ scale: speechSupported ? 1.05 : 1 }}
                 whileTap={{ scale: speechSupported ? 0.95 : 1 }}
                 onClick={() => void toggleListening()}
-                disabled={!speechSupported}
+                disabled={!speechSupported || (voiceQuotaExceeded && !isListening)}
                 aria-pressed={isListening}
                 aria-label={isListening ? 'إيقاف الاستماع' : 'بدء الاستماع'}
-                className={`relative w-28 h-28 md:w-40 md:h-40 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl ${!speechSupported ? 'opacity-50 cursor-not-allowed' : ''} ${isListening
+                className={`relative w-28 h-28 md:w-40 md:h-40 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl ${!speechSupported || (voiceQuotaExceeded && !isListening) ? 'opacity-50 cursor-not-allowed' : ''} ${isListening
                     ? 'bg-gradient-to-tr from-rose-500 to-pink-600 shadow-rose-500/40'
                     : 'bg-gradient-to-tr from-indigo-500 to-violet-600 shadow-indigo-500/40'
                     }`}

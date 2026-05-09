@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AddCardResult, Folder, Card, User as UserType } from '../types';
-import { Plus, Trash2, ArrowRight, ShieldCheck, User, Folder as FolderIcon, X, Layers, PlayCircle, Zap, Volume2, ArrowLeft, Image as ImageIcon, Clock, Search, Filter, ArrowUpDown, RotateCw, MoreVertical, LayoutGrid, List as ListIcon, CheckCircle, Brain, Flame, Edit2, Home, ChevronRight, ChevronDown, Sparkles, Palette } from 'lucide-react';
+import { Plus, Trash2, ArrowRight, ShieldCheck, User, Folder as FolderIcon, X, Layers, PlayCircle, Zap, Volume2, ArrowLeft, Image as ImageIcon, Clock, Search, Filter, ArrowUpDown, RotateCw, MoreVertical, LayoutGrid, List as ListIcon, CheckCircle, Brain, Flame, Edit2, Home, ChevronRight, ChevronDown, Palette } from 'lucide-react';
 import { speakText } from '../services/ttsService';
 import { ConfirmModal } from './ConfirmModal';
 import { Toast } from './Toast';
@@ -86,6 +86,34 @@ const getFolderDepth = (folderId: string | null, allFolders: Folder[]): number =
 
 const MAX_FOLDER_DEPTH = 2; // مجلد رئيسي → فرعي → فرعي داخل فرعي
 
+/** حدود توليد الجمل التوضيحية بالـ AI من نموذج البطاقة (يوميّة، بتوقيت الجهاز) */
+function cardSentenceDailyStorageKey(userId: string): string {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `card_ai_sentence_daily_v1_${userId}_${y}-${m}-${day}`;
+}
+
+function readCardSentenceDailyCount(userId: string): number {
+    try {
+        return Math.max(0, Number(localStorage.getItem(cardSentenceDailyStorageKey(userId)) || 0));
+    } catch {
+        return 0;
+    }
+}
+
+function incrementCardSentenceDailyCount(userId: string): void {
+    const k = cardSentenceDailyStorageKey(userId);
+    localStorage.setItem(k, String(readCardSentenceDailyCount(userId) + 1));
+}
+
+function paidCardSentenceDailyLimit(plan: string | undefined): number | null {
+    if (plan === 'silver') return 10;
+    if (plan === 'pro' || plan === 'enterprise') return 20;
+    return null;
+}
+
 const SORT_OPTIONS: { value: 'newest' | 'oldest' | 'due' | 'hard' | 'alpha'; label: string }[] = [
     { value: 'newest', label: 'الأحدث' },
     { value: 'oldest', label: 'الأقدم' },
@@ -151,8 +179,8 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
     const [editingCardId, setEditingCardId] = useState<string | null>(null);
     const [cardForm, setCardForm] = useState({ front: '', back: '', image: '' });
     const [showPremiumModal, setShowPremiumModal] = useState(false);
-    const [isAIGenerating, setIsAIGenerating] = useState(false);
     const [isAISentenceGenerating, setIsAISentenceGenerating] = useState(false);
+    const [cardSentenceQuotaTick, setCardSentenceQuotaTick] = useState(0);
     const [isSavingCard, setIsSavingCard] = useState(false);
     const [aiUsageCount, setAiUsageCount] = useState(() => Number(localStorage.getItem('ai_usage_count') || 0));
 
@@ -302,24 +330,30 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
         e.target.value = '';
     };
 
-    const [showStyleModal, setShowStyleModal] = useState(false);
-
-    const handleGenerateImageClick = () => {
-        const isPro = user?.plan === 'pro';
-        if (!isPro && aiUsageCount >= 4) {
-            setShowPremiumModal(true);
-            return;
-        }
-        if (!cardForm.front) {
-            showToast('يرجى كتابة الكلمة أولاً', 'error');
-            return;
-        }
-        setShowStyleModal(true);
-    };
+    const cardSentenceQuota = useMemo(() => {
+        const uid = user?.id || '_local';
+        const lim = paidCardSentenceDailyLimit(user?.plan);
+        const used = lim != null ? readCardSentenceDailyCount(uid) : 0;
+        return { used, lim };
+    }, [user?.id, user?.plan, cardSentenceQuotaTick]);
 
     const handleGenerateSentenceClick = async () => {
-        const isPro = user?.plan === 'pro';
-        if (!isPro && aiUsageCount >= 4) {
+        const isPaid = user?.plan === 'pro' || user?.plan === 'silver' || user?.plan === 'enterprise';
+
+        if (isPaid) {
+            const uid = user?.id || '_local';
+            const lim = paidCardSentenceDailyLimit(user?.plan);
+            if (lim != null) {
+                const used = readCardSentenceDailyCount(uid);
+                if (used >= lim) {
+                    showToast(
+                        `وصلت اليوم لحد ${lim} جمل توضيحية بالذكاء الاصطناعي حسب باقتك. يُعاد العد غداً.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
+        } else if (aiUsageCount >= 4) {
             setShowPremiumModal(true);
             return;
         }
@@ -346,7 +380,10 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 }));
                 showToast('تمت إضافة الجملة بنجاح! ✨', 'success');
 
-                if (!isPro) {
+                if (isPaid) {
+                    incrementCardSentenceDailyCount(user?.id || '_local');
+                    setCardSentenceQuotaTick((t) => t + 1);
+                } else {
                     const newCount = aiUsageCount + 1;
                     setAiUsageCount(newCount);
                     localStorage.setItem('ai_usage_count', String(newCount));
@@ -358,34 +395,6 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
             showToast('حدث خطأ أثناء الاتصال بالذكاء الاصطناعي', 'error');
         } finally {
             setIsAISentenceGenerating(false);
-        }
-    };
-
-    const triggerImageGeneration = async (style: string) => {
-        setShowStyleModal(false);
-        setIsAIGenerating(true);
-        showToast(`جاري تخيل المشهد بأسلوب ${style === 'cartoon' ? 'كرتوني' : style === 'realistic' ? 'واقعي' : style === 'anime' ? 'أنمي' : 'ثلاثي الأبعاد'}... 🎨`, 'info');
-
-        try {
-            const { aiService } = await import('../services/aiService');
-            const context = cardForm.back.length > 5 ? cardForm.back : `Meaning of ${cardForm.front}`;
-            const imageUrl = await aiService.generateCardImage(cardForm.front, context, style);
-
-            if (imageUrl) {
-                setCardForm(prev => ({ ...prev, image: imageUrl }));
-                showToast('تم توليد الصورة بنجاح! ✨', 'success');
-                const isPro = user?.plan === 'pro';
-                if (!isPro) {
-                    const newCount = aiUsageCount + 1;
-                    setAiUsageCount(newCount);
-                    localStorage.setItem('ai_usage_count', String(newCount));
-                }
-            }
-        } catch (e: any) {
-            console.error(e);
-            showToast(e.message || 'حدث خطأ غير متوقع', 'error');
-        } finally {
-            setIsAIGenerating(false);
         }
     };
 
@@ -1108,7 +1117,7 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 ) : (
                     <EmptyState
                         title={hasActiveFilters ? 'لا توجد نتائج مطابقة' : 'لا توجد بطاقات هنا'}
-                        description={hasActiveFilters ? 'جرّب تعديل البحث أو الفلاتر.' : 'ابدأ بإضافة كلماتك الخاصة أو استخدم الذكاء الاصطناعي لإنشاء صور توضيحية.'}
+                        description={hasActiveFilters ? 'جرّب تعديل البحث أو الفلاتر.' : 'ابدأ بإضافة كلماتك الخاصة، أو ارفع صورة، أو ولّد جملة توضيحية بالذكاء الاصطناعي من نموذج البطاقة.'}
                         icon={Layers}
                         actionLabel={!hasActiveFilters && currentFolder && canUserManageFolder(currentFolder, user) ? 'إضافة بطاقة جديدة' : undefined}
                         onAction={!hasActiveFilters && currentFolder && canUserManageFolder(currentFolder, user) ? openNewCardModal : undefined}
@@ -1139,18 +1148,35 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-500 mb-2">صورة توضيحية (اختياري)</label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <label className={`cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary dark:hover:border-primary rounded-xl p-4 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary transition h-32 ${isSavingCard ? 'pointer-events-none opacity-50' : ''}`}>
-                                        <ImageIcon size={24} /> <span className="text-xs font-bold text-center">رفع صورة</span>
-                                        <input type="file" accept="image/*" className="hidden" disabled={isSavingCard} onChange={handleImageUpload} />
-                                    </label>
-                                    <button type="button" disabled={isSavingCard || isAIGenerating} onClick={handleGenerateImageClick} className="border-2 border-dashed border-purple-300 hover:border-purple-500 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 text-purple-500 transition h-32 relative overflow-hidden group disabled:opacity-50">
-                                        <Sparkles size={24} className="group-hover:animate-spin" /> <span className="text-xs font-bold text-center">توليد صورة بالذكاء الاصطناعي</span>
-                                        {isAIGenerating && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 flex items-center justify-center"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>}
-                                    </button>
-                                </div>
+                                <label className={`cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary dark:hover:border-primary rounded-xl p-6 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary transition min-h-[8rem] ${isSavingCard ? 'pointer-events-none opacity-50' : ''}`}>
+                                    <ImageIcon size={28} /> <span className="text-sm font-bold text-center">رفع صورة من جهازك</span>
+                                    <input type="file" accept="image/*" className="hidden" disabled={isSavingCard} onChange={handleImageUpload} />
+                                </label>
                                 <div className="mt-4">
-                                    <button type="button" onClick={handleGenerateSentenceClick} disabled={isAISentenceGenerating || isSavingCard} className="w-full border-2 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-50">
+                                    {cardSentenceQuota.lim != null && (
+                                        <p className={`text-xs font-bold text-center mb-2 ${cardSentenceQuota.used >= cardSentenceQuota.lim ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                            توليد الجمل اليوم: {cardSentenceQuota.used} / {cardSentenceQuota.lim}
+                                            <span className="block text-[10px] font-medium mt-0.5 opacity-90">
+                                                باقة سيلفر: 10 جمل يومياً · باقة البرو: 20 جملة يومياً (يُعاد العد بتوقيت جهازك)
+                                            </span>
+                                        </p>
+                                    )}
+                                    {!paidCardSentenceDailyLimit(user?.plan) && (
+                                        <p className="text-[11px] font-bold text-center text-gray-500 dark:text-gray-400 mb-2">
+                                            بدون اشتراك: {aiUsageCount} / 4 تجارب مجانية لتوليد جمل
+                                        </p>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateSentenceClick}
+                                        disabled={
+                                            isAISentenceGenerating ||
+                                            isSavingCard ||
+                                            (cardSentenceQuota.lim != null && cardSentenceQuota.used >= cardSentenceQuota.lim) ||
+                                            (!paidCardSentenceDailyLimit(user?.plan) && aiUsageCount >= 4)
+                                        }
+                                        className="w-full border-2 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-50"
+                                    >
                                         {isAISentenceGenerating ? <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /> : <Brain size={20} />}
                                         توليد جملة توضيحية للكلمة
                                     </button>
@@ -1194,32 +1220,6 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                     'إضافة البطاقة'
                                 )}
                             </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {showStyleModal && typeof document !== 'undefined' && createPortal(
-                <div className="fixed inset-0 bg-black/60 z-[10055] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-dark-card w-full max-w-lg rounded-[2rem] p-8 shadow-2xl border border-stone-100 dark:border-gray-700">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold dark:text-white">اختر أسلوب الرسم</h3>
-                            <button type="button" onClick={() => setShowStyleModal(false)} aria-label="إغلاق">
-                                <X className="text-gray-400 hover:text-red-500" />
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            {[
-                                { id: 'cartoon', label: 'كرتون', icon: '🎨', color: 'bg-blue-100 text-blue-600' },
-                                { id: 'realistic', label: 'واقعي', icon: '📸', color: 'bg-green-100 text-green-600' },
-                                { id: 'anime', label: 'أنمي', icon: '✨', color: 'bg-purple-100 text-purple-600' },
-                                { id: '3d', label: 'ثلاثي الأبعاد', icon: '🧊', color: 'bg-orange-100 text-orange-600' },
-                            ].map(style => (
-                                <button key={style.id} type="button" onClick={() => triggerImageGeneration(style.id)} className={`${style.color} p-4 rounded-xl flex flex-col items-center gap-2 hover:scale-105 transition font-bold`}>
-                                    <span className="text-2xl">{style.icon}</span> {style.label}
-                                </button>
-                            ))}
                         </div>
                     </div>
                 </div>,

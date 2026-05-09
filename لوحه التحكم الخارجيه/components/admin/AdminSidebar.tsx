@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { LayoutDashboard, BookOpen, Layers, Book, Wallet, Users, Palette, ArrowLeft, Map, Megaphone, ChartBarBig, Bell, Headphones, Image as ImageIcon, Sun, Moon, Sparkles, Globe, Shield } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Layers, Book, Wallet, Users, Palette, ArrowLeft, Map, Megaphone, ChartBarBig, Bell, Headphones, Image as ImageIcon, Sun, Moon, Sparkles, Globe, Shield, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from '../Logo';
 
 export type AdminLang = 'en' | 'de' | 'both';
 
 interface AdminSidebarProps {
-    activeTab: 'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational';
+    activeTab: 'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational';
     setActiveTab: (tab: any) => void;
     isMobileMenuOpen: boolean;
     setIsMobileMenuOpen: (isOpen: boolean) => void;
@@ -92,6 +92,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     {
                         title: 'الإدارة والنظام',
                         items: [
+                            { id: 'user_problems', label: 'مشاكل المستخدمين', icon: AlertTriangle },
                             { id: 'users', label: 'المستخدمين', icon: Users },
                             { id: 'admins', label: 'المسؤولين', icon: Shield },
                             { id: 'payment_settings', label: 'الدفع', icon: Wallet },

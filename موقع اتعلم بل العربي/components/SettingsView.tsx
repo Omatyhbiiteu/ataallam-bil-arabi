@@ -35,7 +35,7 @@ interface SettingsViewProps {
     userImage: string | null;
     /** شارة برو ذهبية بجانب الاسم */
     isProSubscriber?: boolean;
-    subscriptionPlan?: 'free' | 'pro' | 'enterprise';
+    subscriptionPlan?: 'free' | 'silver' | 'pro' | 'enterprise';
     planSubscribedAt?: string | null;
     planExpiresAt?: string | null;
     /** إعلان/عرض نشط يتم عرضه داخل قسم الاشتراك */
@@ -424,7 +424,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-w-0">
 
                 {/* Sidebar Navigation */}
                 <div className="lg:col-span-3">
@@ -454,8 +454,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </div>
                 </div>
 
-                {/* Main Content */}
-                <div className="lg:col-span-9 space-y-8">
+                {/* Main Content — min-w-0 يمنع عمود الشبكة من «تعليق» عرض المحتوى في RTL */}
+                <div className="lg:col-span-9 min-w-0 space-y-8">
 
 
 
@@ -1178,7 +1178,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                     <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-3 leading-snug">
                                         {subscriptionPlan === 'enterprise'
                                             ? 'أنت مشترك بالفعل في باقة الأعمال (Enterprise).'
-                                            : 'أنت مشترك بالفعل في باقة البرو.'}
+                                            : subscriptionPlan === 'silver'
+                                              ? 'أنت مشترك بالفعل في باقة سيلفر.'
+                                              : 'أنت مشترك بالفعل في باقة البرو.'}
                                     </h2>
                                     <p className="text-gray-600 dark:text-amber-100/80 font-medium mb-6">
                                         تستمتع بجميع مزايا الاشتراك المميز. شكراً لثقتك بنا.
@@ -1208,14 +1210,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                     </button>
                                 </m.div>
                             ) : (
-                                <>
-                                <div className="max-w-2xl mx-auto mb-8">
+                                <div
+                                    id="subscription-plans-section"
+                                    className="w-full min-w-0 flex flex-col items-stretch pt-8 md:pt-12 lg:pt-16 space-y-8 lg:space-y-10 px-2 sm:px-4"
+                                >
+                                <div className="w-full max-w-2xl mx-auto shrink-0">
                                     <OffersSlider
                                         offers={offersBanners}
                                         onNavigateToSettings={() => { /* already in subscription */ }}
                                     />
                                 </div>
-                            <div className="text-center space-y-4 mb-10">
+                            <div className="text-center space-y-4 mb-2 w-full max-w-3xl mx-auto">
                                 <m.div
                                     initial={{ y: -20, opacity: 0 }}
                                     animate={{ y: 0, opacity: 1 }}
@@ -1241,13 +1246,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                            <div
+                                id="subscription-plans-grid"
+                                className={`grid gap-6 md:gap-8 mx-auto items-stretch w-full min-w-0 justify-items-stretch ${
+                                    (paymentSettings.plans?.length ?? 0) + 1 >= 3
+                                        ? 'grid-cols-1 sm:grid-cols-2 lg:[grid-template-columns:repeat(3,minmax(0,1fr))]'
+                                        : 'grid-cols-1 lg:grid-cols-2 max-w-5xl'
+                                }`}
+                            >
                                 {/* Free Plan Card */}
                                 <m.div
                                     initial={{ x: 50, opacity: 0 }}
                                     animate={{ x: 0, opacity: 1 }}
                                     transition={{ delay: 0.1 }}
-                                    className="bg-white/50 dark:bg-slate-900/40 backdrop-blur-md rounded-[3rem] p-8 md:p-10 border border-gray-200 dark:border-gray-800 relative overflow-hidden group hover:bg-white dark:hover:bg-slate-900 transition-colors duration-500"
+                                    className="min-w-0 w-full h-full bg-white/50 dark:bg-slate-900/40 backdrop-blur-md rounded-[3rem] p-8 md:p-10 border border-gray-200 dark:border-gray-800 relative overflow-hidden group hover:bg-white dark:hover:bg-slate-900 transition-colors duration-500"
                                 >
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-gray-200 dark:bg-gray-800 rounded-bl-[100px] -mr-4 -mt-4 transition-all group-hover:scale-110"></div>
 
@@ -1301,7 +1313,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                         initial={{ x: -50, opacity: 0 }}
                                         animate={{ x: 0, opacity: 1 }}
                                         transition={{ delay: 0.2 }}
-                                        className={`bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden transform hover:-translate-y-2 transition-all duration-500 border border-${plan.theme}-500/20`}
+                                        className={`min-w-0 w-full h-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden transform hover:-translate-y-2 transition-all duration-500 border border-${plan.theme}-500/20`}
                                         style={{ boxShadow: `0 25px 50px -12px ${plan.theme === 'amber' ? 'rgba(245, 158, 11, 0.25)' : plan.theme === 'blue' ? 'rgba(59, 130, 246, 0.25)' : plan.theme === 'purple' ? 'rgba(139, 92, 246, 0.25)' : plan.theme === 'red' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}` }}
                                     >
                                         <div className={`absolute top-0 left-0 w-full h-full bg-gradient-to-br from-${plan.theme}-500/20 to-transparent opacity-50`}></div>
@@ -1370,7 +1382,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 ))}
                             </div>
 
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-12">
+                            <div
+                                id="subscription-trust-badges"
+                                className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mx-auto mt-4 w-full min-w-0 ${(paymentSettings.plans?.length ?? 0) + 1 >= 3 ? '' : 'max-w-5xl'}`}
+                            >
                                 {[
                                     {
                                         icon: Shield,
@@ -1422,7 +1437,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                     </m.div>
                                 ))}
                             </div>
-                                </>
+                                </div>
                             )}
                         </div>
                     )}
@@ -1737,7 +1752,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                                                     try {
                                                         await PaymentsAPI.createSession({
-                                                            planId: selectedPlan?.id || 'default_pro',
+                                                            planId: selectedPlan?.id || 'pro',
                                                             planPrice: planBasePrice,
                                                             couponCode: couponCodeToUse,
                                                             paymentMethod: selectedMethod,

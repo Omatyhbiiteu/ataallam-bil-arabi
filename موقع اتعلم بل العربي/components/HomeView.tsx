@@ -24,7 +24,7 @@ interface HomeViewProps {
     completedLessonIds: string[];
     userName: string;
     userImage: string | null;
-    subscriptionPlan?: 'free' | 'pro' | 'enterprise';
+    subscriptionPlan?: 'free' | 'silver' | 'pro' | 'enterprise';
     planSubscribedAt?: string | null;
     planExpiresAt?: string | null;
     /** اشتراك برو/Enterprise نشط — يُمرَّر من App ليتوافق مع الشارة والبانر */
@@ -100,7 +100,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
 
     const planLabel =
-        subscriptionPlan === 'enterprise' ? 'باقة أعمال (Enterprise)' : 'باقة برو';
+        subscriptionPlan === 'enterprise'
+            ? 'باقة أعمال (Enterprise)'
+            : subscriptionPlan === 'silver'
+              ? 'باقة سيلفر'
+              : 'باقة البرو';
 
     const dailyWisdom = t.home?.dailyWisdom || 'حكمة اليوم';
     const motivationalQuotes = t.motivationalQuotes || [

@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\LanguageAvailabilityController;
 use App\Http\Controllers\Api\AdminAnalyticsController;
 use App\Http\Controllers\Api\StoryQuizAttemptController;
 use App\Http\Controllers\Api\CommunityController;
+use App\Http\Controllers\Api\PasswordRecoveryRequestController;
+use App\Http\Controllers\Api\AdminPasswordRecoveryRequestController;
 
 Route::get('/health', function () {
     return response()->json([
@@ -112,6 +114,8 @@ Route::get('/payment-settings', [PaymentSettingsController::class, 'public']);
 // ---------------------------
 Route::get('/settings/language-availability', [LanguageAvailabilityController::class, 'public']);
 
+Route::middleware('throttle:15,1')->post('/password-recovery-requests', [PasswordRecoveryRequestController::class, 'store']);
+
 Route::prefix('admin')->group(function () {
     Route::post('/auth/login', [AdminAuthController::class, 'login']);
 
@@ -132,6 +136,8 @@ Route::prefix('admin')->group(function () {
         Route::put('/admin-users/me/password', [AdminUserController::class, 'updatePassword']);
         Route::put('/admin-users/{adminUser}/password', [AdminUserController::class, 'resetPassword']);
         Route::delete('/admin-users/{adminUser}', [AdminUserController::class, 'destroy']);
+
+        Route::get('/password-recovery-requests', [AdminPasswordRecoveryRequestController::class, 'index']);
 
         Route::get('/users', [AdminAppUserController::class, 'index']);
         Route::put('/users/{user}/plan', [AdminAppUserController::class, 'updatePlan']);

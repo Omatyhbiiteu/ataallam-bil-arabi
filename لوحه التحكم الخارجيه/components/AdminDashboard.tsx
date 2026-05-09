@@ -26,6 +26,7 @@ import { QuestionForm } from './admin/QuestionForm';
 import { FoldersTab } from './admin/FoldersTab';
 import { AdminSentencesView } from './admin/AdminSentencesView';
 import { AdminInspirationalTab } from './admin/AdminInspirationalTab';
+import { AdminUserProblemsTab } from './admin/AdminUserProblemsTab';
 import { useAdminSupportNotifications } from '../hooks/useAdminSupportNotifications';
 import { AdminSupportNotificationBell } from './admin/AdminSupportNotificationBell';
 import { AdminAPI } from '../services/apiClient';
@@ -125,7 +126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     langAvailability, setLangAvailability
 }) => {
     // Navigation State
-    const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational'>('overview');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const adminInbox = useAdminSupportNotifications(45000);
@@ -1064,6 +1065,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             />
                         )
                     }
+
+                    {activeTab === 'user_problems' && <AdminUserProblemsTab />}
 
                     {/* Users Management */}
                     {activeTab === 'users' && (

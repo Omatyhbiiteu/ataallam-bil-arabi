@@ -213,6 +213,7 @@ export default function App() {
   const [userImage, setUserImage] = useState<string | null>(() => db.load('userimage', null));
   const [language, setLanguage] = useState<Language>(() => db.load('lang', 'ar'));
   const [langAvailability, setLangAvailability] = useState<LanguageAvailability>(() => db.load('langAvailability', { en: true, de: true }));
+  const [forgotPasswordPrefillEmail, setForgotPasswordPrefillEmail] = useState('');
 
   const syncUserFromServer = useCallback(async () => {
     try {
@@ -271,7 +272,7 @@ export default function App() {
   const hasActiveSubscription = useMemo(() => {
     if (!currentUser) return false;
     const plan = currentUser.plan ?? 'free';
-    const isPaid = plan === 'pro' || plan === 'enterprise';
+    const isPaid = plan === 'silver' || plan === 'pro' || plan === 'enterprise';
     const expiresMs = currentUser.planExpiresAt ? new Date(currentUser.planExpiresAt).getTime() : null;
     return isPaid && (expiresMs === null || !Number.isFinite(expiresMs) || expiresMs > Date.now());
   }, [currentUser?.plan, currentUser?.planExpiresAt, currentUser?.id]);
@@ -1539,6 +1540,7 @@ export default function App() {
             onBackToHome={() => setAuthView('landing')}
             isDarkMode={darkMode}
             toggleTheme={toggleTheme}
+            initialEmail={forgotPasswordPrefillEmail}
           />
         </div>
       );
@@ -1549,7 +1551,10 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
           onBackToHome={() => setAuthView('landing')}
           onNavigateToSignup={() => setAuthView('signup')}
-          onForgotPassword={() => setAuthView('forgot-password')}
+          onForgotPassword={(emailFromField) => {
+            setForgotPasswordPrefillEmail(emailFromField);
+            setAuthView('forgot-password');
+          }}
           isDarkMode={darkMode}
           toggleTheme={toggleTheme}
           langAvailability={langAvailability}
@@ -1790,6 +1795,8 @@ export default function App() {
                         targetLanguage={learningLang as 'en' | 'de'}
                         userImage={userImage}
                         userName={userName}
+                        userId={currentUser?.id}
+                        subscriptionPlan={currentUser?.plan ?? 'free'}
                         studyPlan={studyPlan}
                         setStudyPlan={setStudyPlan}
                         isProSubscriber={hasActiveSubscription}

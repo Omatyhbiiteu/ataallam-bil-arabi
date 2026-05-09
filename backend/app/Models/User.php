@@ -64,7 +64,7 @@ class User extends Authenticatable
     public function hasActivePaidPlan(): bool
     {
         $plan = $this->plan ?? 'free';
-        if (! in_array($plan, ['pro', 'enterprise'], true)) {
+        if (! in_array($plan, ['silver', 'pro', 'enterprise'], true)) {
             return false;
         }
         $expires = $this->plan_expires_at;

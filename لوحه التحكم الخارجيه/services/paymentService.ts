@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS: PaymentSettings = {
     stripeSecretKey: '',
     currency: 'USD',
     isLiveMode: false,
-    price: 50,
+    price: 99,
     plans: SUBSCRIPTION_PLANS
 };
 

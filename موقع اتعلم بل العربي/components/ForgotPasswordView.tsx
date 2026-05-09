@@ -1,41 +1,71 @@
-import React, { useState } from 'react';
-import { Mail, ArrowRight, Loader, ArrowLeft, Home, Sun, Moon, Key, CheckCircle, ShieldCheck, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, ArrowRight, Loader, ArrowLeft, Sun, Moon, Key, CheckCircle, ShieldCheck, Send, User, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from './Logo';
+import { AuthAPI } from '../services/apiClient';
 
 interface ForgotPasswordViewProps {
     onBackToLogin: () => void;
     onBackToHome: () => void;
     isDarkMode: boolean;
     toggleTheme: () => void;
+    /** يُمرَّر من حقل البريد في صفحة تسجيل الدخول عند الضغط على «نسيت كلمة المرور» */
+    initialEmail?: string;
 }
 
-export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackToLogin, onBackToHome, isDarkMode, toggleTheme }) => {
-    const [email, setEmail] = useState('');
+export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({
+    onBackToLogin,
+    onBackToHome,
+    isDarkMode,
+    toggleTheme,
+    initialEmail = '',
+}) => {
+    const [fullName, setFullName] = useState('');
+    const [email, setEmail] = useState(initialEmail);
+    const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(false);
     const [isSent, setIsSent] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        setEmail(initialEmail);
+    }, [initialEmail]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email) {
+        if (!fullName.trim()) {
+            setError('يرجى إدخال الاسم بالكامل');
+            return;
+        }
+        if (!email.trim()) {
             setError('يرجى إدخال البريد الإلكتروني');
+            return;
+        }
+        if (!phone.trim()) {
+            setError('يرجى إدخال رقم الهاتف');
             return;
         }
 
         setLoading(true);
         setError('');
 
-        // Simulate API call
-        setTimeout(() => {
-            setLoading(false);
+        try {
+            await AuthAPI.submitPasswordRecoveryRequest({
+                full_name: fullName.trim(),
+                email: email.trim(),
+                phone: phone.trim(),
+            });
             setIsSent(true);
-        }, 2000);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'تعذر إرسال الطلب';
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen flex bg-white dark:bg-gray-900 overflow-hidden" dir="rtl">
-            {/* Theme Toggle */}
             <button
                 onClick={toggleTheme}
                 className="absolute top-4 left-4 md:top-6 md:left-6 z-50 p-2 md:p-2.5 rounded-full bg-stone-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition shadow-sm"
@@ -43,7 +73,6 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                 {isDarkMode ? <Sun size={18} className="text-amber-400 md:w-5 md:h-5" /> : <Moon size={18} className="text-blue-600 md:w-5 md:h-5" />}
             </button>
 
-            {/* LEFT SIDE: Branding & Visuals */}
             <div className="hidden lg:flex w-1/2 relative bg-[#0f172a] overflow-hidden flex-col justify-between p-12">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
                 <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-500/20 rounded-full blur-3xl"></div>
@@ -73,8 +102,8 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                             transition={{ delay: 0.2 }}
                             className="text-5xl font-black text-white leading-tight"
                         >
-                            تأمين <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-amber-500">حسابك هو أولويتنا</span>
+                            استعادة <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-amber-500">الوصول لحسابك</span>
                         </motion.h1>
                         <motion.p
                             initial={{ opacity: 0, y: 20 }}
@@ -82,7 +111,7 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                             transition={{ delay: 0.3 }}
                             className="text-gray-400 text-lg max-w-md leading-relaxed"
                         >
-                            لا تقلق، استعادة الوصول لحسابك بسيطة وسريعة جداً. اتبع الخطوات وسنرسل لك رابطاً لإعادة تعيين كلمة السر.
+                            أدخل بياناتك أدناه. سيصل طلبك إلى فريق الإدارة لمساعدتك في إعادة تعيين كلمة المرور.
                         </motion.p>
                     </div>
                 </div>
@@ -93,9 +122,7 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                 </div>
             </div>
 
-            {/* RIGHT SIDE: Form */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative overflow-hidden">
-                {/* Decorative background for mobile */}
                 <div className="lg:hidden absolute -top-24 -right-24 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl"></div>
                 <div className="lg:hidden absolute -bottom-24 -left-24 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
 
@@ -128,10 +155,26 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                                     <Key size={32} className="text-amber-600 dark:text-amber-400" />
                                 </motion.div>
                                 <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-3 text-center lg:text-right">هل نسيت كلمة السر؟</h2>
-                                <p className="text-gray-500 dark:text-gray-400 text-center lg:text-right">لا مشكلة! أدخل بريدك الإلكتروني وسنرسل لك رابطاً لاستعادتها.</p>
+                                <p className="text-gray-500 dark:text-gray-400 text-center lg:text-right">
+                                    أدخل اسمك الكامل وبريدك ورقم هاتفك. سيُبلَّغ المسؤول ليتواصل معك.
+                                </p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            <form onSubmit={handleSubmit} className="space-y-5">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">الاسم بالكامل</label>
+                                    <div className="relative group">
+                                        <User className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-amber-500 transition-colors" size={18} />
+                                        <input
+                                            type="text"
+                                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl py-4 pr-12 pl-4 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all dark:text-white font-bold"
+                                            placeholder="الاسم كما في الحساب"
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            autoComplete="name"
+                                        />
+                                    </div>
+                                </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">البريد الإلكتروني</label>
                                     <div className="relative group">
@@ -142,10 +185,25 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                                             placeholder="your@email.com"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
+                                            autoComplete="email"
                                         />
                                     </div>
-                                    {error && <p className="text-red-500 text-xs font-bold mr-1 mt-1">{error}</p>}
                                 </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">رقم الهاتف</label>
+                                    <div className="relative group">
+                                        <Phone className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-amber-500 transition-colors" size={18} />
+                                        <input
+                                            type="tel"
+                                            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl py-4 pr-12 pl-4 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all dark:text-white font-bold"
+                                            placeholder="مثال: 01xxxxxxxxx"
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
+                                            autoComplete="tel"
+                                        />
+                                    </div>
+                                </div>
+                                {error && <p className="text-red-500 text-xs font-bold mr-1">{error}</p>}
 
                                 <button
                                     type="submit"
@@ -156,7 +214,7 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                                         <Loader className="animate-spin" size={24} />
                                     ) : (
                                         <>
-                                            <span>إرسال رابط الاستعادة</span>
+                                            <span>إرسال الطلب للمسؤول</span>
                                             <Send size={20} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                                         </>
                                     )}
@@ -188,19 +246,20 @@ export const ForgotPasswordView: React.FC<ForgotPasswordViewProps> = ({ onBackTo
                                 <CheckCircle size={48} className="text-green-600 dark:text-green-400" />
                             </motion.div>
 
-                            <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-4">تم الإرسال بنجاح!</h2>
+                            <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-4">تم استلام طلبك</h2>
                             <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-                                لقد أرسلنا رابط إعادة تعيين كلمة السر إلى <br />
-                                <span className="font-bold text-gray-900 dark:text-white">{email}</span>. <br />
-                                يرجى التحقق من بريدك (والمجلد العشوائي أيضاً).
+                                وصل طلب استعادة كلمة المرور إلى لوحة المسؤول مع بياناتك (الاسم، البريد، الهاتف). سيتواصل معك الفريق قريباً.
                             </p>
 
                             <div className="space-y-4">
                                 <button
-                                    onClick={() => setIsSent(false)}
+                                    onClick={() => {
+                                        setIsSent(false);
+                                        setError('');
+                                    }}
                                     className="w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white py-4 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                                 >
-                                    إعادة الإرسال
+                                    إرسال طلب آخر
                                 </button>
                                 <button
                                     onClick={onBackToLogin}

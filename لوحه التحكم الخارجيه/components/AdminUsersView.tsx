@@ -10,11 +10,37 @@ type AdminUserRow = {
     age?: number;
     gender?: 'male' | 'female' | string;
     startLevel?: string;
-    plan: 'free' | 'pro' | 'enterprise' | string;
+    plan: 'free' | 'silver' | 'pro' | 'enterprise' | string;
     isFrozen: boolean;
     joinDate?: string;
     lastActive?: string;
 };
+
+type AppPaidPlan = 'silver' | 'pro';
+
+const PAID_PLAN_IDS: string[] = ['silver', 'pro', 'enterprise'];
+
+const isPaidUserPlan = (plan: string) => PAID_PLAN_IDS.includes(plan);
+
+const PLAN_LABEL_AR: Record<string, string> = {
+    free: 'مجاني',
+    silver: 'سيلفر',
+    pro: 'برو',
+    enterprise: 'Enterprise',
+};
+
+const SUBSCRIPTION_TIER_OPTIONS: { id: AppPaidPlan; title: string; hint: string }[] = [
+    {
+        id: 'silver',
+        title: 'باقة سيلفر',
+        hint: 'حتى 70 رسالة يومياً للذكاء الاصطناعي · حتى 10 دقائق محادثة صوتية يومياً مع الـ AI',
+    },
+    {
+        id: 'pro',
+        title: 'باقة البرو',
+        hint: 'حتى 150 رسالة يومياً للذكاء الاصطناعي · حتى 20 دقيقة محادثة صوتية يومياً مع الـ AI',
+    },
+];
 
 type Summary = {
     totalUsers: number;
@@ -90,7 +116,7 @@ const UserDetailsModal: React.FC<{ user: AdminUserRow; onClose: () => void }> = 
                             <div>
                                 <h3 className="text-2xl font-black text-white flex items-center gap-2">
                                     {user.name || '-'}
-                                    {user.plan === 'pro' && <Shield size={18} className="text-amber-400" />}
+                                    {isPaidUserPlan(String(user.plan)) && <Shield size={18} className="text-amber-400" />}
                                 </h3>
                                 <p className="text-gray-400 text-sm mt-1">ملف المستخدم التفصيلي - Admin Profile</p>
                             </div>
@@ -225,7 +251,7 @@ const UserDetailsModal: React.FC<{ user: AdminUserRow; onClose: () => void }> = 
                         </div>
                         <div className="rounded-xl bg-slate-900/70 border border-white/10 p-4">
                             <p className="text-xs text-gray-400 mb-1">الخطة</p>
-                            <p className="text-white font-bold">{String(user.plan).toUpperCase()}</p>
+                            <p className="text-white font-bold">{PLAN_LABEL_AR[String(user.plan)] || String(user.plan).toUpperCase()}</p>
                         </div>
                         <div className="rounded-xl bg-slate-900/70 border border-white/10 p-4">
                             <p className="text-xs text-gray-400 mb-1 flex items-center gap-1"><Smartphone size={12} /> الجهاز</p>
@@ -237,6 +263,76 @@ const UserDetailsModal: React.FC<{ user: AdminUserRow; onClose: () => void }> = 
                             <p className="text-xs text-cyan-300 mt-1">Engagement Score: {engagement}%</p>
                         </div>
                     </div>
+                </div>
+            </m.div>
+        </div>
+    );
+};
+
+const PickSubscriptionPlanModal: React.FC<{
+    user: AdminUserRow;
+    mode: 'activate' | 'change';
+    busy: boolean;
+    onClose: () => void;
+    onPick: (plan: AppPaidPlan) => void;
+}> = ({ user, mode, busy, onClose, onPick }) => {
+    const title = mode === 'activate' ? 'تفعيل الاشتراك' : 'تغيير باقة الاشتراك';
+    const subtitle =
+        mode === 'activate'
+            ? 'اختر الباقة التي تريد تفعيلها لهذا المستخدم.'
+            : 'اختر الباقة الجديدة. سيتم تحديث فترة الاشتراك من تاريخ التفعيل.';
+
+    return (
+        <div className="fixed inset-0 z-[230] flex items-center justify-center p-4" dir="rtl">
+            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={busy ? undefined : onClose} />
+            <m.div
+                initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                className="relative w-full max-w-lg rounded-3xl bg-[#0f111a] border border-white/10 shadow-2xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-white/10">
+                    <h3 className="text-xl font-black text-white flex items-center gap-2">
+                        <Shield className="text-amber-400" size={22} />
+                        {title}
+                    </h3>
+                    <p className="text-gray-400 text-sm font-bold mt-2 leading-relaxed">{subtitle}</p>
+                    <p className="text-white font-black mt-3">
+                        المستخدم: <span className="text-amber-300">{user.name || '—'}</span>
+                        <span className="text-gray-500 font-medium text-sm mr-2">({user.email})</span>
+                    </p>
+                </div>
+                <div className="p-6 space-y-3">
+                    {SUBSCRIPTION_TIER_OPTIONS.map((opt) => {
+                        const isCurrent = String(user.plan) === opt.id;
+                        return (
+                            <button
+                                key={opt.id}
+                                type="button"
+                                disabled={busy || isCurrent}
+                                onClick={() => onPick(opt.id)}
+                                className={`w-full text-right rounded-2xl border px-5 py-4 transition disabled:opacity-45 disabled:cursor-not-allowed ${
+                                    isCurrent
+                                        ? 'border-emerald-500/40 bg-emerald-500/10'
+                                        : 'border-white/10 bg-white/5 hover:bg-white/10 hover:border-amber-500/30'
+                                }`}
+                            >
+                                <p className="text-white font-black text-lg">{opt.title}</p>
+                                <p className="text-gray-400 text-xs font-bold mt-1 leading-relaxed">{opt.hint}</p>
+                                {isCurrent && <p className="text-emerald-400 text-[11px] font-black mt-2">الباقة الحالية</p>}
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="p-4 border-t border-white/10 flex justify-end gap-2">
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onClose}
+                        className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-bold disabled:opacity-50"
+                    >
+                        إلغاء
+                    </button>
                 </div>
             </m.div>
         </div>
@@ -258,6 +354,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
     const [filterType, setFilterType] = useState<'all' | 'pro' | 'free' | 'frozen'>('all');
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
+    const [planPicker, setPlanPicker] = useState<{ user: AdminUserRow; mode: 'activate' | 'change' } | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     const loadUsers = async () => {
@@ -328,7 +425,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
 
             const filterOk =
                 filterType === 'all' ||
-                (filterType === 'pro' && u.plan === 'pro') ||
+                (filterType === 'pro' && isPaidUserPlan(String(u.plan))) ||
                 (filterType === 'free' && u.plan === 'free') ||
                 (filterType === 'frozen' && u.isFrozen);
 
@@ -336,23 +433,40 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
         });
     }, [users, searchTerm, filterType]);
 
-    const togglePlan = async (user: AdminUserRow) => {
-        if (updatingId) return;
+    const applyUserPlan = async (user: AdminUserRow, newPlan: 'free' | 'silver' | 'pro' | 'enterprise'): Promise<boolean> => {
+        if (updatingId) return false;
         setUpdatingId(user.id);
         try {
-            const targetPlan = user.plan === 'pro' ? 'free' : 'pro';
-            await AdminAPI.updateUserPlan(user.id, targetPlan);
-            setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, plan: targetPlan } : u)));
+            const oldPlan = String(user.plan);
+            await AdminAPI.updateUserPlan(user.id, newPlan);
+            setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, plan: newPlan } : u)));
+            setSelectedUser((prev) => (prev && prev.id === user.id ? { ...prev, plan: newPlan } : prev));
             setSummary((prev) => {
-                const delta = targetPlan === 'pro' ? 1 : -1;
-                return { ...prev, proUsers: Math.max(0, prev.proUsers + delta) };
+                const wasPaid = isPaidUserPlan(oldPlan);
+                const nowPaid = isPaidUserPlan(newPlan);
+                let { proUsers } = prev;
+                if (!wasPaid && nowPaid) proUsers += 1;
+                if (wasPaid && !nowPaid) proUsers = Math.max(0, proUsers - 1);
+                return { ...prev, proUsers };
             });
-            setToast({ msg: targetPlan === 'pro' ? 'تم تفعيل Pro بنجاح' : 'تم إلغاء Pro بنجاح', type: 'success' });
+            const labelNew = PLAN_LABEL_AR[newPlan] || newPlan;
+            setToast({
+                msg: newPlan === 'free' ? 'تم إلغاء الاشتراك وإرجاع الخطة المجانية' : `تم تعيين الخطة إلى ${labelNew} بنجاح`,
+                type: 'success',
+            });
+            return true;
         } catch (err: any) {
             setToast({ msg: err?.message || 'فشل تحديث الخطة', type: 'error' });
+            return false;
         } finally {
             setUpdatingId(null);
         }
+    };
+
+    const confirmPaidPlan = async (plan: AppPaidPlan) => {
+        if (!planPicker) return;
+        const ok = await applyUserPlan(planPicker.user, plan);
+        if (ok) setPlanPicker(null);
     };
 
     const toggleFreeze = async (user: AdminUserRow) => {
@@ -378,6 +492,19 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
         <div className="p-8 space-y-8 animate-fade-in pb-24">
             <AnimatePresence>
                 {selectedUser && <UserDetailsModal user={selectedUser} onClose={() => setSelectedUser(null)} />}
+                {planPicker && (
+                    <PickSubscriptionPlanModal
+                        key={planPicker.user.id + planPicker.mode}
+                        user={planPicker.user}
+                        mode={planPicker.mode}
+                        busy={updatingId === planPicker.user.id}
+                        onClose={() => {
+                            if (updatingId) return;
+                            setPlanPicker(null);
+                        }}
+                        onPick={(p) => void confirmPaidPlan(p)}
+                    />
+                )}
             </AnimatePresence>
 
             <AnimatePresence>
@@ -417,7 +544,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
                     <p className="text-3xl font-black text-cyan-400 mt-2">{summary.frozenUsers}</p>
                 </div>
                 <div className="bg-gray-900/50 border border-white/10 rounded-2xl p-4">
-                    <p className="text-gray-400 text-sm">مشتركين Pro</p>
+                    <p className="text-gray-400 text-sm">اشتراكات مدفوعة</p>
                     <p className="text-3xl font-black text-amber-400 mt-2">{summary.proUsers}</p>
                 </div>
             </div>
@@ -437,7 +564,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
                     <div className="flex gap-2">
                         {[
                             { id: 'all', label: 'الكل' },
-                            { id: 'pro', label: 'Pro' },
+                            { id: 'pro', label: 'مدفوع' },
                             { id: 'free', label: 'مجاني' },
                             { id: 'frozen', label: 'مجمد' },
                         ].map((f) => (
@@ -473,7 +600,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
                             <tbody className="divide-y divide-white/5">
                                 {filteredUsers.map((user) => {
                                     const isUpdating = updatingId === user.id;
-                                    const isPro = user.plan === 'pro';
+                                    const paid = isPaidUserPlan(String(user.plan));
+                                    const planBadge = PLAN_LABEL_AR[String(user.plan)] || String(user.plan).toUpperCase();
                                     return (
                                         <tr key={user.id} className="hover:bg-white/5 cursor-pointer" onClick={() => setSelectedUser(user)}>
                                             <td className="px-6 py-4">
@@ -485,8 +613,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-300">{user.startLevel || '-'}</td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black ${isPro ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
-                                                    <Shield size={11} /> {isPro ? 'PRO' : 'FREE'}
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black ${paid ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
+                                                    <Shield size={11} /> {planBadge}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
@@ -497,17 +625,48 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ focusAppUserId, 
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-400">{user.lastActive ? new Date(user.lastActive).toLocaleDateString('ar-EG') : '-'}</td>
                                             <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            togglePlan(user);
-                                                        }}
-                                                        disabled={isUpdating}
-                                                        className={`px-3 py-2 rounded-lg text-xs font-bold ${isPro ? 'bg-red-500/10 text-red-300 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'}`}
-                                                    >
-                                                        {isPro ? <span className="inline-flex items-center gap-1"><UserX size={13} /> إلغاء Pro</span> : <span className="inline-flex items-center gap-1"><UserCheck size={13} /> تفعيل Pro</span>}
-                                                    </button>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {!paid ? (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setPlanPicker({ user, mode: 'activate' });
+                                                            }}
+                                                            disabled={isUpdating}
+                                                            className="px-3 py-2 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                                                        >
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <UserCheck size={13} /> تفعيل الاشتراك
+                                                            </span>
+                                                        </button>
+                                                    ) : (
+                                                        <>
+                                                            {user.plan !== 'enterprise' && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setPlanPicker({ user, mode: 'change' });
+                                                                    }}
+                                                                    disabled={isUpdating}
+                                                                    className="px-3 py-2 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-200 border border-indigo-500/25"
+                                                                >
+                                                                    تغيير الباقة
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    void applyUserPlan(user, 'free');
+                                                                }}
+                                                                disabled={isUpdating}
+                                                                className="px-3 py-2 rounded-lg text-xs font-bold bg-red-500/10 text-red-300 border border-red-500/20"
+                                                            >
+                                                                <span className="inline-flex items-center gap-1">
+                                                                    <UserX size={13} /> إلغاء الاشتراك
+                                                                </span>
+                                                            </button>
+                                                        </>
+                                                    )}
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();

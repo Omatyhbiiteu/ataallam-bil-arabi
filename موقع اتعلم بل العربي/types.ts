@@ -62,7 +62,7 @@ export interface User {
   name: string;
   avatar?: string;
   token?: string;
-  plan: 'free' | 'pro' | 'enterprise';
+  plan: 'free' | 'silver' | 'pro' | 'enterprise';
   /** بداية فترة الاشتراك (مثل تفعيل المسؤول لبرو) — ISO 8601 */
   planSubscribedAt?: string | null;
   /** نهاية فترة الاشتراك — ISO 8601 */

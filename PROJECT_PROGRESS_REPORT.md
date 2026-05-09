@@ -155,9 +155,76 @@ npm run dev
 
 ---
 
-Last updated: 2026-05-08 (محدّث: حدود الخطة المجانية للمجلدات/البطاقات، مودال البطاقة + Pro، قصة واحدة للمجاني، المواقف الحياتية لـ Pro فقط، وتأمين API)
+Last updated: 2026-05-08 (محدّث: استعادة كلمة المرور عبر الطلب للمسؤول + تبويب «مشاكل المستخدمين»؛ إزالة دخول Google/Facebook من صفحة الدخول؛ بالإضافة إلى: حدود المجاني/Pro، قصة واحدة للمجاني، المواقف الحياتية لـ Pro، وتأمين API)
 
 ## Update Log (Latest)
+
+### 2026-05-08 — نسيت كلمة المرور: طلب للمسؤول + تبويب «مشاكل المستخدمين» + إزالة دخول السوشيال من صفحة الدخول
+
+#### 1) صفحة تسجيل الدخول (`LoginView.tsx`)
+
+- **إزالة** أزرار تسجيل الدخول عبر **Google** و**Facebook** بالكامل (لا يوجد بعد الآن قسم «أو تابع باستخدام»).
+- زر **«نسيت كلمة المرور؟»** يستدعي **`onForgotPassword(email.trim())`** لتمرير البريد المكتوب في حقل الدخول إلى الشاشة التالية.
+
+#### 2) صفحة «هل نسيت كلمة السر؟» (`ForgotPasswordView.tsx`)
+
+- حقول إلزامية: **الاسم بالكامل**، **البريد الإلكتروني**، **رقم الهاتف**.
+- **تعبئة البريد:** prop **`initialEmail`** يُمرَّر من **`App.tsx`** (`forgotPasswordPrefillEmail`) عند الانتقال من صفحة الدخول.
+- الإرسال عبر **`AuthAPI.submitPasswordRecoveryRequest`** (بدون توكن مستخدم).
+- رسالة النجاح توضح أن الطلب وصل إلى لوحة المسؤول وليس إرسال رابط بريد تلقائي.
+
+#### 3) التطبيق الرئيسي — ربط الحالة (`App.tsx`)
+
+- حالة **`forgotPasswordPrefillEmail`**: عند فتح شاشة النسيان يُحدَّث البريد من حقل تسجيل الدخول.
+- **`ForgotPasswordView`** يستقبل **`initialEmail={forgotPasswordPrefillEmail}`**.
+
+#### 4) API العميل — الموقع (`موقع اتعلم بل العربي/services/apiClient.ts`)
+
+- **`AuthAPI.submitPasswordRecoveryRequest(body)`** → **`POST /password-recovery-requests`**  
+  - Body: `{ full_name, email, phone }` (مطابقة لتحقق Laravel).
+
+#### 5) الباكند (Laravel)
+
+- **هجرة:** `backend/database/migrations/2026_05_08_000000_create_password_recovery_requests_table.php`  
+  - جدول **`password_recovery_requests`**: `full_name`, `email`, `phone`, `created_at`, `updated_at`.
+- **نموذج:** `backend/app/Models/PasswordRecoveryRequest.php`.
+- **عام (بدون مصادقة):**  
+  - **`PasswordRecoveryRequestController@store`** — تحقق من الحقول وحفظ الطلب.  
+  - مسار: **`POST /api/password-recovery-requests`** مع وسيط **`throttle:15,1`** (حد معدل الطلبات).
+- **للمسؤول (Sanctum — توكن لوحة التحكم):**  
+  - **`AdminPasswordRecoveryRequestController@index`** — إرجاع قائمة الطلبات (أحدث أولاً) بصيغة JSON مناسبة للواجهة (`fullName`, `email`, `phone`, `createdAt`).  
+  - مسار: **`GET /api/admin/password-recovery-requests`**.
+- **تسجيل المسارات:** `backend/routes/api.php` (استيراد المتحكمين وإضافة السطرين أعلاه).
+
+#### 6) لوحة التحكم الخارجية
+
+- **`AdminSidebar.tsx`:** في مجموعة **«الإدارة والنظام»** — عنصر **`user_problems`** بعنوان **«مشاكل المستخدمين»** **فوق** «المستخدمين» (أيقونة `AlertTriangle`).  
+  - تحديث نوع **`activeTab`** ليشمل **`user_problems`**.
+- **`AdminUserProblemsTab.tsx`:** عرض جدولي لطلبات استعادة كلمة المرور (النوع، الاسم، البريد مع `mailto:`، الهاتف، التاريخ المحلي) + زر تحديث.
+- **`AdminDashboard.tsx`:** عند **`activeTab === 'user_problems'`** عرض **`AdminUserProblemsTab`**.
+- **`لوحه التحكم الخارجيه/services/apiClient.ts`:** **`AdminAPI.getPasswordRecoveryRequests()`** → **`GET /admin/password-recovery-requests`**.
+
+#### 7) تشغيل / ترحيل قاعدة البيانات
+
+- بعد سحب التعديلات: من مجلد **`backend`** تشغيل **`php artisan migrate`** لإنشاء جدول **`password_recovery_requests`** إن لم يكن مُنشأ.
+
+#### ملفات بارزة (هذا القسم)
+
+- `موقع اتعلم بل العربي/components/LoginView.tsx`
+- `موقع اتعلم بل العربي/components/ForgotPasswordView.tsx`
+- `موقع اتعلم بل العربي/App.tsx`
+- `موقع اتعلم بل العربي/services/apiClient.ts`
+- `backend/database/migrations/2026_05_08_000000_create_password_recovery_requests_table.php`
+- `backend/app/Models/PasswordRecoveryRequest.php`
+- `backend/app/Http/Controllers/Api/PasswordRecoveryRequestController.php`
+- `backend/app/Http/Controllers/Api/AdminPasswordRecoveryRequestController.php`
+- `backend/routes/api.php`
+- `لوحه التحكم الخارجيه/components/admin/AdminSidebar.tsx`
+- `لوحه التحكم الخارجيه/components/admin/AdminUserProblemsTab.tsx`
+- `لوحه التحكم الخارجيه/components/AdminDashboard.tsx`
+- `لوحه التحكم الخارجيه/services/apiClient.ts`
+
+---
 
 ### 2026-05-08 — الخطة المجانية vs Pro: مجلدات، بطاقات، قصص، مواقف حياتية، UX للمودالات، وباك‑إند
 

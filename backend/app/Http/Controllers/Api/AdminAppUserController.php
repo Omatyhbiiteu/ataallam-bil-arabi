@@ -55,7 +55,7 @@ class AdminAppUserController extends Controller
             'users' => $users,
             'summary' => [
                 'totalUsers' => $users->count(),
-                'proUsers' => $users->where('plan', 'pro')->count(),
+                'proUsers' => $users->whereIn('plan', ['silver', 'pro', 'enterprise'])->count(),
                 'frozenUsers' => $users->where('isFrozen', true)->count(),
                 'activeUsers' => $users->where('isFrozen', false)->count(),
             ],
@@ -65,12 +65,12 @@ class AdminAppUserController extends Controller
     public function updatePlan(Request $request, User $user)
     {
         $data = $request->validate([
-            'plan' => ['required', 'string', Rule::in(['free', 'pro', 'enterprise'])],
+            'plan' => ['required', 'string', Rule::in(['free', 'silver', 'pro', 'enterprise'])],
         ]);
 
         $user->plan = $data['plan'];
 
-        if (in_array($data['plan'], ['pro', 'enterprise'], true)) {
+        if (in_array($data['plan'], ['silver', 'pro', 'enterprise'], true)) {
             $user->plan_subscribed_at = Carbon::now();
             $user->plan_expires_at = Carbon::now()->addMonth();
         } else {
