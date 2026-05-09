@@ -17,6 +17,14 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
+    /** معاينة الإنتاج (Railway وغيره): منفذ PORT، كل الواجهات، بدون فتح متصفح على السيرفر، وعدم حظر hostname المنصة */
+    preview: {
+      open: false,
+      host: true,
+      port: Number(process.env.PORT) || 4173,
+      strictPort: true,
+      allowedHosts: true,
+    },
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
