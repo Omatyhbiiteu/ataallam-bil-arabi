@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
     server: {
       open: false,
       port: 3001,
+      host: true,
       /** نفس المنشأ: المتصفح يطلب `/api` من منفذ Vite، والـ proxy يمرّرها إلى Laravel — يُزيل مشاكل CORS بين localhost و127.0.0.1 */
       proxy: {
         '/api': {
