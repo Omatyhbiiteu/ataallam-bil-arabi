@@ -4,7 +4,7 @@ import { Toast } from './components/Toast';
 import { db } from './services/db';
 import { Language, LanguageAvailability, Folder, Card, PromoBanner, Coupon, BroadcastNotification, SupportTicket, MediaItem, SentenceTopic, InspirationalSlide } from './types';
 import { translations } from './utils/translations';
-import { LazyMotion, domMax } from 'framer-motion';
+import { LazyMotion, domMax, MotionConfig } from 'framer-motion';
 import { ShieldCheck } from 'lucide-react';
 
 import { useAppTheme } from './hooks/useAppTheme';
@@ -67,6 +67,7 @@ export default function App() {
 
     const {
         darkMode, toggleTheme,
+        animationsEnabled,
         selectedTheme, setSelectedTheme,
         themeSchedules, setThemeSchedules,
         customThemeConfig, setCustomThemeConfig
@@ -130,10 +131,11 @@ export default function App() {
 
     return (
         <LazyMotion features={domMax}>
-            <div className="min-h-screen w-full overflow-x-hidden bg-background dark:bg-dark-bg transition-colors duration-300 font-sans" dir={dir}>
+            <MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
+            <div className="site-responsive-root min-h-screen w-full overflow-x-hidden bg-background dark:bg-dark-bg transition-colors duration-300 font-sans" dir={dir}>
 
                 <Suspense fallback={null}>
-                    <ThemeVisuals theme={selectedTheme} isDarkMode={darkMode} customConfig={customThemeConfig} />
+                    <ThemeVisuals theme={selectedTheme} isDarkMode={darkMode} animationsEnabled={animationsEnabled} customConfig={customThemeConfig} />
                 </Suspense>
 
                 <Toast message={toast.message} isVisible={toast.visible} onClose={() => setToast({ ...toast, visible: false })} type={toast.type} />
@@ -183,19 +185,20 @@ export default function App() {
                                 <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                     <ShieldCheck size={32} className="text-red-500" />
                                 </div>
-                                <h2 className="text-xl font-bold text-white mb-2">منطقة محمية (لوحة التحكم المستقلة)</h2>
-                                <p className="text-gray-400 text-sm mb-6">جاري تحويلك لبوابة التحقق...</p>
+                                <h2 className="text-xl font-bold text-white mb-2">منطقة محمية (لوحة تحكم مفتاح اللغة)</h2>
+                                <p className="text-gray-400 text-sm mb-6">جاري تحويلك لبوابة تحقق KeyLang...</p>
                                 <button
                                     onClick={redirectToUserApp}
                                     className="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-red-600/20"
                                 >
-                                    العودة لواجهة المستخدم
+                                    العودة لموقع مفتاح اللغة
                                 </button>
                             </div>
                         </div>
                     )}
                 </Suspense>
             </div>
+            </MotionConfig>
         </LazyMotion>
     );
 }

@@ -14,4 +14,4 @@ User-agent: Googlebot
 Allow: /
 Crawl-delay: 1
 
-Sitemap: https://et3alem-bel-araby.com/sitemap.xml
+Sitemap: https://keylang.app/sitemap.xml

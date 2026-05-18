@@ -63,6 +63,7 @@ class CardController extends Controller
             'frontText' => (string) $c->front_text,
             'backText' => (string) $c->back_text,
             'frontImage' => $c->front_image ? (string) $c->front_image : null,
+            'frontImageFit' => in_array($c->front_image_fit, ['wide', 'portrait'], true) ? (string) $c->front_image_fit : null,
             'createdAt' => (int) (($c->created_at?->timestamp ?? time()) * 1000),
             'nextReview' => (int) $c->next_review,
             'interval' => (int) $c->interval,

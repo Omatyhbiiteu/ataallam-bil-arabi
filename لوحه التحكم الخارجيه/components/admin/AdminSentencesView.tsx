@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+﻿import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Search, Trash2, Edit2, Eye, CheckCircle, X, Save, Image as ImageIcon, BookOpen, HelpCircle,
@@ -13,6 +13,7 @@ import { AdminAPI } from '../../services/apiClient';
 import { db } from '../../services/db';
 import { SentenceTopicPreviewModal } from './SentenceTopicPreviewModal';
 import { ConfirmModal } from '../ConfirmModal';
+import { UploadProgressBar } from './UploadProgressBar';
 
 interface AdminSentencesViewProps {
     topics: SentenceTopic[];
@@ -33,7 +34,10 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
     const [currentTopic, setCurrentTopic] = useState<Partial<SentenceTopic>>({});
     const [searchQuery, setSearchQuery] = useState('');
     const [mediaUploading, setMediaUploading] = useState(false);
+    const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+    const [mediaUploadFileName, setMediaUploadFileName] = useState<string | undefined>();
     const [sentenceAudioUploadIdx, setSentenceAudioUploadIdx] = useState<number | null>(null);
+    const [sentenceAudioProgress, setSentenceAudioProgress] = useState(0);
     const [saving, setSaving] = useState(false);
     const [previewTopic, setPreviewTopic] = useState<SentenceTopic | null>(null);
     const [topicIdToDelete, setTopicIdToDelete] = useState<string | null>(null);
@@ -189,6 +193,8 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
         const uploadLang = (sl === 'en' || sl === 'de' || sl === 'both') ? sl : 'en';
         const kind = currentTopic.mediaType === 'video' ? 'video' : 'image';
         setMediaUploading(true);
+        setMediaUploadProgress(0);
+        setMediaUploadFileName(file.name);
         setPageError(null);
         try {
             const fd = new FormData();
@@ -196,12 +202,15 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
             fd.append('kind', kind);
             fd.append('context', 'sentences');
             fd.append('sentenceLang', uploadLang);
-            const { url } = await AdminAPI.uploadMedia(fd);
-            setCurrentTopic(prev => ({ ...prev, mediaUrl: url }));
+            const { url, path } = await AdminAPI.uploadMediaWithProgress(fd, setMediaUploadProgress);
+            setMediaUploadProgress(100);
+            setCurrentTopic(prev => ({ ...prev, mediaUrl: path || url }));
+            // Brief pause to show 100% before hiding
+            setTimeout(() => { setMediaUploading(false); setMediaUploadProgress(0); }, 800);
         } catch (err: any) {
             setPageError(err?.message || 'فشل رفع الملف');
-        } finally {
             setMediaUploading(false);
+            setMediaUploadProgress(0);
         }
     };
 
@@ -411,27 +420,28 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
                                             <select
                                                 value={currentTopic.mediaType || 'none'}
                                                 onChange={e => setCurrentTopic(prev => ({ ...prev, mediaType: e.target.value as any }))}
-                                                className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
-                                            >
-                                                <option value="none">لا يوجد</option>
-                                                <option value="video">فيديو</option>
-                                                <option value="image">صورة</option>
-                                            </select>
-                                        </div>
-                                        {currentTopic.mediaType !== 'none' && (
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                    {currentTopic.mediaType === 'video' ? 'رابط الفيديو او رفعه' : 'رابط الصورة او رفعها'}
-                                                </label>
-                                                <div className="flex flex-col gap-1">
+                                                 className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                                             >
+                                                 <option value="none">لا يوجد</option>
+                                                 <option value="video">فيديو</option>
+                                                 <option value="image">صورة</option>
+                                             </select>
+                                         </div>
+                                         {currentTopic.mediaType !== 'none' && (
+                                             <div>
+                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                     {currentTopic.mediaType === 'video' ? 'رابط الفيديو او رفعه' : 'رابط الصورة او رفعها'}
+                                                 </label>
+                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex gap-2">
                                                         <input
                                                             type="text"
                                                             value={currentTopic.mediaUrl || ''}
                                                             onChange={e => setCurrentTopic(prev => ({ ...prev, mediaUrl: e.target.value }))}
-                                                            className="flex-1 px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
+                                                            className="flex-1 px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
                                                             placeholder="https://..."
                                                             dir="ltr"
+                                                            disabled={mediaUploading}
                                                         />
                                                         <label className={`w-12 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center ${mediaUploading ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:bg-indigo-200'} transition-colors`}>
                                                             <input
@@ -439,22 +449,33 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
                                                                 accept={currentTopic.mediaType === 'video' ? 'video/*' : 'image/*'}
                                                                 className="hidden"
                                                                 onChange={handleTopicMediaFile}
+                                                                disabled={mediaUploading}
                                                             />
-                                                            <Plus size={20} />
+                                                            {mediaUploading
+                                                                ? <span className="text-base animate-spin inline-block">⏳</span>
+                                                                : <Plus size={20} />
+                                                            }
                                                         </label>
                                                     </div>
-                                                    <p className="text-[10px] text-gray-400">
-                                                        رفع الملف يُخزَّن تحت «جمل» ثم{' '}
-                                                        {currentTopic.sentenceLang === 'both'
-                                                            ? 'english (افتراضي عند «كلاهما»)'
-                                                            : currentTopic.sentenceLang === 'en' ? 'english' : 'german'}{' '}
-                                                        ثم {currentTopic.mediaType === 'video' ? 'videos' : 'images'}.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                                    {mediaUploading && (
+                                                        <UploadProgressBar
+                                                            progress={mediaUploadProgress}
+                                                            fileName={mediaUploadFileName}
+                                                            done={mediaUploadProgress >= 100}
+                                                        />
+                                                     )}
+                                                     <p className="text-[10px] text-gray-400">
+                                                         رفع الملف يُخزَّن تحت «جمل» ثم{' '}
+                                                         {currentTopic.sentenceLang === 'both'
+                                                             ? 'english (افتراضي عند «كلاهما»)'
+                                                             : currentTopic.sentenceLang === 'en' ? 'english' : 'german'}{' '}
+                                                         ثم {currentTopic.mediaType === 'video' ? 'videos' : 'images'}.
+                                                     </p>
+                                                 </div>
+                                             </div>
+                                         )}
                                 </div>
+                                 </div>
 
                                 {/* Grammar Notes */}
                                 <div className="md:col-span-2 pt-4 border-t border-gray-100 dark:border-gray-700">
@@ -545,17 +566,19 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
                                                                     }
                                                                     setSentenceAudioUploadIdx(idx);
                                                                     void (async () => {
+                                                                        setSentenceAudioProgress(0);
                                                                         try {
                                                                             const fd = new FormData();
                                                                             fd.append('file', file);
                                                                             fd.append('kind', 'audio');
-                                                                            const { url } = await AdminAPI.uploadMedia(fd);
+                                                                            const { url, path } = await AdminAPI.uploadMediaWithProgress(fd, setSentenceAudioProgress);
+                                                                            setSentenceAudioProgress(100);
                                                                             const newSentences = [...(currentTopic.sentences || [])];
-                                                                            newSentences[idx] = { ...sentence, audioUrl: url };
+                                                                            newSentences[idx] = { ...sentence, audioUrl: path || url };
                                                                             setCurrentTopic(prev => ({ ...prev, sentences: newSentences }));
+                                                                            setTimeout(() => setSentenceAudioUploadIdx(null), 800);
                                                                         } catch (err: any) {
                                                                             setPageError(err?.message || 'فشل رفع الصوت');
-                                                                        } finally {
                                                                             setSentenceAudioUploadIdx(null);
                                                                         }
                                                                     })();
@@ -564,6 +587,13 @@ export const AdminSentencesView: React.FC<AdminSentencesViewProps> = ({ topics, 
                                                             <Plus size={14} />
                                                         </label>
                                                     </div>
+                                                     {sentenceAudioUploadIdx === idx && (
+                                                         <UploadProgressBar
+                                                             progress={sentenceAudioProgress}
+                                                             fileName={undefined}
+                                                             done={sentenceAudioProgress >= 100}
+                                                         />
+                                                     )}
                                                     <input
                                                         type="text"
                                                         value={sentence.notes || ''}

@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { LayoutDashboard, BookOpen, Layers, Book, Wallet, Users, Palette, ArrowLeft, Map, Megaphone, ChartBarBig, Bell, Headphones, Image as ImageIcon, Sun, Moon, Sparkles, Globe, Shield, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Layers, Book, Wallet, Users, Palette, ArrowLeft, Map, Megaphone, ChartBarBig, Bell, Headphones, Image as ImageIcon, Sun, Moon, Sparkles, Globe, Shield, AlertTriangle, Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from '../Logo';
 
 export type AdminLang = 'en' | 'de' | 'both';
 
 interface AdminSidebarProps {
-    activeTab: 'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational';
+    activeTab: 'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'games' | 'inspirational';
     setActiveTab: (tab: any) => void;
     isMobileMenuOpen: boolean;
     setIsMobileMenuOpen: (isOpen: boolean) => void;
@@ -45,7 +45,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 onClick={() => setActiveTab('overview')}
             >
                 <div className="flex-1 flex justify-center dark">
-                    <Logo variant="bilingual" size="md" centered={true} className="text-white" />
+                    <Logo variant="bilingual" size="sm" centered={true} className="text-white" />
                 </div>
 
                 {notificationsBell && (
@@ -75,6 +75,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                             { id: 'stories', label: 'القصص', icon: BookOpen },
                             { id: 'curriculum', label: 'المنهج', icon: Map },
                             { id: 'sentences', label: 'المواقف الحياتية', icon: Sparkles },
+                            { id: 'games', label: 'الألعاب', icon: Gamepad2 },
                             { id: 'folders', label: 'المجلدات', icon: Layers },
                             { id: 'dictionary_manager', label: 'القاموس', icon: Book },
                             { id: 'media_library', label: 'الوسائط', icon: ImageIcon },

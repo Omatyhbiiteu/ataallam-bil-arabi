@@ -12,6 +12,8 @@ import {
 import { X } from 'lucide-react';
 import { QuestionForm } from './QuestionForm';
 import { AdminAPI } from '../../services/apiClient';
+import { UploadProgressBar } from './UploadProgressBar';
+import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 
 interface LessonEditorProps {
     lesson: Partial<Lesson>;
@@ -60,6 +62,8 @@ export const LessonEditor: React.FC<LessonEditorProps> = ({ lesson, setLesson, o
     const [mediaSubTab, setMediaSubTab] = useState<'image' | 'video' | 'audio'>('image');
     const [toastMessage, setToastMessage] = useState<{ text: string, type: 'error' | 'success' | 'info' } | null>(null);
     const [mediaUploading, setMediaUploading] = useState(false);
+    const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+    const [mediaUploadFileName, setMediaUploadFileName] = useState<string | undefined>();
     const [newQuestion, setNewQuestion] = useState<Partial<Question>>({
         type: 'multiple-choice',
         options: ['', '', '', ''],
@@ -422,7 +426,10 @@ export const LessonEditor: React.FC<LessonEditorProps> = ({ lesson, setLesson, o
 
                     <div className="bg-white dark:bg-white/5 backdrop-blur-xl p-3 rounded-[2.5rem] border border-gray-100 dark:border-white/10 aspect-video relative group overflow-hidden shadow-xl dark:shadow-2xl transition-colors duration-300">
                         {lesson.image ? (
-                            <img src={lesson.image} className="w-full h-full object-cover rounded-[1.8rem]" alt="Lesson Thumbnail" />
+                            <div className="relative w-full h-full rounded-[1.8rem] overflow-hidden bg-gray-50 dark:bg-slate-900">
+                                <img src={resolveMediaUrl(lesson.image)} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                <img src={resolveMediaUrl(lesson.image)} className="relative z-[1] w-full h-full object-contain p-3" alt="Lesson Thumbnail" />
+                            </div>
                         ) : (
                             <div className="w-full h-full bg-gray-50 dark:bg-slate-900 rounded-[1.8rem] flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 gap-3 border border-dashed border-gray-200 dark:border-white/5">
                                 <ImageIcon size={48} strokeWidth={1} />
@@ -546,7 +553,10 @@ export const LessonEditor: React.FC<LessonEditorProps> = ({ lesson, setLesson, o
                                                 <m.div key="sub-image" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-8">
                                                     <div className="max-w-md mx-auto aspect-video bg-gray-50 dark:bg-slate-900 rounded-[2rem] border-2 border-dashed border-gray-200 dark:border-white/10 overflow-hidden relative group">
                                                         {lesson.image ? (
-                                                            <img src={lesson.image} className="w-full h-full object-cover" alt="Preview" />
+                                                            <>
+                                                                <img src={resolveMediaUrl(lesson.image)} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                                                <img src={resolveMediaUrl(lesson.image)} className="relative z-[1] w-full h-full object-contain p-3" alt="Preview" />
+                                                            </>
                                                         ) : (
                                                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600">
                                                                 <ImageIcon size={64} strokeWidth={1} className="mb-4" />
@@ -608,8 +618,11 @@ export const LessonEditor: React.FC<LessonEditorProps> = ({ lesson, setLesson, o
                                                                 ></iframe>
                                                             ) : (
                                                                 <video
-                                                                    src={lesson.videoUrl}
+                                                                    src={resolveMediaUrl(lesson.videoUrl)}
                                                                     controls
+                                                                    controlsList="nodownload noplaybackrate"
+                                                                    disablePictureInPicture
+                                                                    onContextMenu={(event) => event.preventDefault()}
                                                                     className="w-full h-full"
                                                                     onError={(e) => {
                                                                         if (lesson.videoUrl && !getEmbedUrl(lesson.videoUrl)) {
@@ -656,7 +669,7 @@ export const LessonEditor: React.FC<LessonEditorProps> = ({ lesson, setLesson, o
                                                     </div>
                                                     {lesson.audioUrl && (
                                                         <div className="max-w-md mx-auto p-8 bg-blue-50 dark:bg-blue-600/5 rounded-[2.5rem] border border-blue-200 dark:border-blue-500/20 shadow-xl overflow-hidden">
-                                                            <audio controls className="w-full accent-blue-600" src={lesson.audioUrl}></audio>
+                                                            <audio controls className="w-full accent-blue-600" src={resolveMediaUrl(lesson.audioUrl)}></audio>
                                                             <p className="text-[10px] font-black text-blue-500 uppercase mt-4">معاينة الصوت المباشرة</p>
                                                         </div>
                                                     )}

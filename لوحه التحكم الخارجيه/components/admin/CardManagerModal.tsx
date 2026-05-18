@@ -135,7 +135,10 @@ export const CardManagerModal: React.FC<CardManagerModalProps> = ({
                                 onClick={() => (document.getElementById('cardImageInput') as HTMLInputElement)?.click()}
                             >
                                 {newCard.image ? (
-                                    <img src={newCard.image} className="w-full h-full object-cover" alt="" />
+                                    <>
+                                        <img src={newCard.image} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                        <img src={newCard.image} className="relative z-[1] w-full h-full object-contain p-3" alt="" />
+                                    </>
                                 ) : (
                                     <>
                                         <ImageIcon size={32} className="mb-2" />

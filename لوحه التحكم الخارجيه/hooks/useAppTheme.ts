@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
 import { AppTheme, ThemeSchedule, CustomThemeConfig } from '../types';
-import { THEMES_DATA } from '../components/ThemeVisuals';
+import { THEMES_DATA } from '../components/themeData';
+
+const ANIMATION_STORAGE_KEY = 'animationsEnabled';
+const ANIMATION_DEFAULT_MIGRATION_KEY = 'animationsDefaultReducedV2';
+
+const readAnimationsEnabledDefault = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (localStorage.getItem(ANIMATION_DEFAULT_MIGRATION_KEY) !== '1') {
+            localStorage.setItem(ANIMATION_STORAGE_KEY, 'false');
+            localStorage.setItem(ANIMATION_DEFAULT_MIGRATION_KEY, '1');
+            return false;
+        }
+        const stored = localStorage.getItem(ANIMATION_STORAGE_KEY);
+        return stored === 'true';
+    } catch {
+        return false;
+    }
+};
 
 export function useAppTheme() {
     const [darkMode, setDarkMode] = useState(() => {
@@ -28,11 +46,7 @@ export function useAppTheme() {
     });
 
     const [animationsEnabled, setAnimationsEnabled] = useState<boolean>(() => {
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('animationsEnabled');
-            return stored !== null ? stored === 'true' : true;
-        }
-        return true;
+        return readAnimationsEnabledDefault();
     });
 
     const [selectedTheme, setSelectedTheme] = useState<AppTheme>(() => {
@@ -151,7 +165,7 @@ export function useAppTheme() {
         } else {
             document.documentElement.classList.add('animations-disabled');
         }
-        localStorage.setItem('animationsEnabled', animationsEnabled.toString());
+        localStorage.setItem(ANIMATION_STORAGE_KEY, animationsEnabled.toString());
     }, [animationsEnabled]);
 
     // Effect: Sync across tabs

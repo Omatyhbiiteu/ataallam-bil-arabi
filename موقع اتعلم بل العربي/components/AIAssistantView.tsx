@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Bot, User, Sparkles, Loader2, Zap, Mic, Headphones, MessageSquare, GraduationCap, Play, StopCircle, RefreshCcw, Calendar, CheckCircle2, Clock, MapPin, ListChecks, TrendingUp } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, Zap, Mic, Headphones, MessageSquare, GraduationCap, Play, StopCircle, RefreshCcw, Calendar, CheckCircle2, Clock, MapPin, ListChecks, TrendingUp, BrainCircuit, Orbit, Rocket, Timer, Activity, Cpu, BookOpen, Lightbulb, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { aiService } from '../services/aiService';
 import { speakText, stopSpeaking, classifyPracticeInputLang } from '../services/ttsService';
@@ -221,21 +221,31 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
     const chatSuggestions = useMemo(() => (
         targetLanguage === 'de'
             ? [
-                { t: 'Hallo! 👋', i: '👋' },
-                { t: 'Wie geht es dir heute?', i: '🤔' },
-                { t: 'Erzähl mir etwas über Technologie.', i: '💻' },
-                { t: 'Ich möchte neue Wörter lernen.', i: '📚' }
+                { t: 'Hallo!', i: <MessageCircle className="w-4 h-4 text-cyan-500" /> },
+                { t: 'Wie geht es dir heute?', i: <Lightbulb className="w-4 h-4 text-amber-500" /> },
+                { t: 'Erzähl mir etwas über Technologie.', i: <Cpu className="w-4 h-4 text-fuchsia-500" /> },
+                { t: 'Ich möchte neue Wörter lernen.', i: <BookOpen className="w-4 h-4 text-emerald-500" /> }
             ]
             : [
-                { t: 'Hello! 👋', i: '👋' },
-                { t: 'How are you today?', i: '🤔' },
-                { t: 'Tell me about technology.', i: '💻' },
-                { t: 'I want to learn new words.', i: '📚' }
+                { t: 'Hello!', i: <MessageCircle className="w-4 h-4 text-cyan-500" /> },
+                { t: 'How are you today?', i: <Lightbulb className="w-4 h-4 text-amber-500" /> },
+                { t: 'Tell me about technology.', i: <Cpu className="w-4 h-4 text-fuchsia-500" /> },
+                { t: 'I want to learn new words.', i: <BookOpen className="w-4 h-4 text-emerald-500" /> }
             ]
     ), [targetLanguage]);
-    const inputPlaceholder = targetLanguage === 'de'
-        ? 'اكتب بالألمانية هنا...'
-        : 'اكتب بالإنجليزية هنا...';
+    const inputPlaceholder = useMemo(() => {
+        const isAr = t.aiAssistant.title.includes('المساعد');
+        const isDeApp = t.aiAssistant.title.includes('Assistent');
+        
+        if (targetLanguage === 'de') {
+            if (isAr) return 'اكتب بالألمانية هنا...';
+            if (isDeApp) return 'Schreiben Sie hier auf Deutsch...';
+            return 'Type in German here...';
+        }
+        if (isAr) return 'اكتب بالإنجليزية هنا...';
+        if (isDeApp) return 'Schreiben Sie hier auf Englisch...';
+        return 'Type in English here...';
+    }, [targetLanguage, t.aiAssistant]);
     const pleaseSpeakOnlyTarget = useMemo(
         () =>
             targetLanguage === 'de'
@@ -302,7 +312,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
             const welcomeMsg: Message = {
                 id: 'welcome',
                 text: targetLanguage === 'en'
-                    ? "Welcome to Et3alem Bel Araby AI! Choose a mode to start practicing."
+                    ? "Welcome to KeyLang AI! Choose a mode to start practicing."
                     : "Willkommen! Wähle einen Modus, um zu üben.",
                 sender: 'ai',
                 timestamp: new Date()
@@ -719,7 +729,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                     <button
                                         key={i}
                                         onClick={() => { setPlanData({ ...planData, daysPerWeek: opt }); setPlanStep(3); }}
-                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-right font-bold transition-all text-base md:text-lg text-gray-700 dark:text-gray-200"
+                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-emerald-400 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-emerald-100/50 dark:hover:from-emerald-900/30 dark:hover:to-emerald-800/10 hover:shadow-lg hover:shadow-emerald-500/10 hover:scale-[1.02] text-right font-bold transition-all duration-300 text-base md:text-lg text-gray-700 dark:text-gray-200"
                                     >
                                         {opt}
                                     </button>
@@ -740,14 +750,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                 رجوع &rarr;
                             </button>
                             <h3 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white mb-6 md:mb-8 flex items-center gap-3">
-                                <Clock className="text-indigo-500" size={28} /> كم ساعة يمكنك الالتزام بها أسبوعياً؟
+                                <Timer className="text-indigo-500" size={28} /> كم ساعة يمكنك الالتزام بها أسبوعياً؟
                             </h3>
                             <div className="grid grid-cols-1 gap-3 md:gap-4">
                                 {['1-3 ساعات (نمط حياتي مزدحم ⏳)', '3-5 ساعات (التزام معتدل ☕)', '5-10 ساعات (جدية وتركيز 🚀)', 'أكثر من 10 ساعات (تفرغ وشغف 🔥)'].map((opt, i) => (
                                     <button
                                         key={i}
                                         onClick={() => { setPlanData({ ...planData, hoursPerWeek: opt }); setPlanStep(4); }}
-                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-right font-bold transition-all text-base md:text-lg text-gray-700 dark:text-gray-200"
+                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-indigo-400 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-indigo-100/50 dark:hover:from-indigo-900/30 dark:hover:to-indigo-800/10 hover:shadow-lg hover:shadow-indigo-500/10 hover:scale-[1.02] text-right font-bold transition-all duration-300 text-base md:text-lg text-gray-700 dark:text-gray-200"
                                     >
                                         {opt}
                                     </button>
@@ -768,7 +778,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                 رجوع &rarr;
                             </button>
                             <h3 className="text-2xl font-black text-gray-800 dark:text-white mb-8 flex items-center gap-3">
-                                <MapPin className="text-rose-500" size={32} /> ما هو هدفك الأساسي الملحّ في الوقت الحالي؟
+                                <Rocket className="text-rose-500" size={32} /> ما هو هدفك الأساسي الملحّ في الوقت الحالي؟
                             </h3>
                             <div className="grid grid-cols-1 gap-4">
                                 {[
@@ -780,7 +790,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                     <button
                                         key={opt.id}
                                         onClick={() => { setPlanData({ ...planData, primaryGoal: opt.label }); setPlanStep(5); }}
-                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-right font-bold transition-all text-base md:text-lg text-gray-700 dark:text-gray-200"
+                                        className="p-4 md:p-6 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-rose-400 hover:bg-gradient-to-r hover:from-rose-50 hover:to-rose-100/50 dark:hover:from-rose-900/30 dark:hover:to-rose-800/10 hover:shadow-lg hover:shadow-rose-500/10 hover:scale-[1.02] text-right font-bold transition-all duration-300 text-base md:text-lg text-gray-700 dark:text-gray-200"
                                     >
                                         {opt.label}
                                     </button>
@@ -801,7 +811,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                 رجوع &rarr;
                             </button>
                             <h3 className="text-2xl font-black text-gray-800 dark:text-white mb-6 flex items-center gap-3">
-                                <GraduationCap className="text-blue-500" size={32} /> ما هو أكبر عائق أو نقطة ضعف لديك حالياً؟
+                                <Activity className="text-blue-500" size={32} /> ما هو أكبر عائق أو نقطة ضعف لديك حالياً؟
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 {[
@@ -818,7 +828,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                             setPlanData({ ...planData, biggestWeakness: weakness });
                                             setPlanStep(6);
                                         }}
-                                        className="p-4 md:p-5 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-right font-bold transition-all text-sm md:text-base text-gray-700 dark:text-gray-200 shadow-sm"
+                                        className="p-4 md:p-5 rounded-2xl border-2 border-stone-100 dark:border-gray-700 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100/50 dark:hover:from-blue-900/30 dark:hover:to-blue-800/10 hover:shadow-lg hover:shadow-blue-500/10 hover:scale-[1.02] text-right font-bold transition-all duration-300 text-sm md:text-base text-gray-700 dark:text-gray-200 shadow-sm"
                                     >
                                         {weakness}
                                     </button>
@@ -1212,14 +1222,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-transparent opacity-50 blur-xl"></div>
                         <div className="flex items-center gap-3 md:gap-4 relative z-10">
                             <div className="relative group cursor-pointer">
-                                <div className="w-10 h-10 md:w-14 md:h-14 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 transform rotate-3 transition-transform group-hover:rotate-6 group-hover:scale-110">
-                                    <Sparkles size={20} className="text-white animate-pulse md:w-7 md:h-7" />
+                                <div className="w-10 h-10 md:w-14 md:h-14 bg-gradient-to-br from-cyan-500 to-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 transform rotate-3 transition-transform group-hover:rotate-6 group-hover:scale-110">
+                                    <BrainCircuit size={20} className="text-white animate-pulse md:w-7 md:h-7" />
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 w-3 h-3 md:w-5 md:h-5 bg-emerald-500 border-[3px] border-white dark:border-gray-900 rounded-full animate-bounce"></div>
+                                <div className="absolute -bottom-1 -right-1 w-3 h-3 md:w-5 md:h-5 bg-fuchsia-500 border-[3px] border-white dark:border-gray-900 rounded-full animate-bounce"></div>
                             </div>
                             <div>
                                 <h3 className="font-extrabold text-lg md:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300">
-                                    اتعلم بالعربي{' '}
+                                    KeyLang AI{' '}
                                     {assistantPlanBadge && (
                                         <span
                                             className={`hidden md:inline text-xs px-2 py-0.5 rounded-full align-middle ml-2 border font-black ${assistantPlanBadge.className}`}
@@ -1323,7 +1333,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                             key={suggestion.t}
                                             disabled={freeChatBlocked}
                                             onClick={() => processMessage(suggestion.t)}
-                                            className="group px-4 py-2 md:px-5 md:py-3 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold hover:border-indigo-500 hover:ring-4 hover:ring-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-sm flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none disabled:hover:border-stone-200 dark:disabled:hover:border-slate-700"
+                                            className="group px-4 py-2 md:px-5 md:py-3 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-xl md:rounded-2xl text-xs md:text-sm font-bold hover:border-indigo-400 hover:ring-4 hover:ring-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)] hover:scale-105 transition-all duration-300 shadow-sm flex items-center gap-2 disabled:opacity-40 disabled:pointer-events-none disabled:hover:border-stone-200 dark:disabled:hover:border-slate-700"
                                         >
                                             <span className="opacity-50 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0">{suggestion.i}</span>
                                             {suggestion.t}
@@ -1345,15 +1355,15 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                     <div className={`flex max-w-[90%] md:max-w-[75%] gap-2 md:gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                                         {/* Avatar */}
                                         <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2 border-white dark:border-slate-700 transform ${msg.sender === 'user'
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/30 rotate-3'
-                                            : 'bg-gradient-to-br from-indigo-600 to-violet-600 -rotate-3'
+                                            ? 'bg-indigo-50 dark:bg-indigo-900/30'
+                                            : 'bg-gradient-to-br from-cyan-500 to-indigo-600'
                                             }`}>
                                             {msg.sender === 'user' ?
                                                 (userImage ?
                                                     <img src={userImage} alt="User" className="w-full h-full rounded-2xl object-cover" />
                                                     : <User size={14} className="text-indigo-600 dark:text-indigo-400 md:w-[18px] md:h-[18px]" />
                                                 )
-                                                : <Bot size={16} className="text-white md:w-5 md:h-5" />
+                                                : <Sparkles size={16} className="text-white md:w-5 md:h-5" />
                                             }
                                         </div>
 
@@ -1363,7 +1373,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                                             lang={conversationLang}
                                             className={`relative p-3 md:p-5 shadow-sm transform transition-transform hover:scale-[1.01] ${msg.sender === 'user'
                                                 ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-2xl md:rounded-[2rem] rounded-tr-sm shadow-indigo-500/20'
-                                                : 'bg-white dark:bg-slate-800/90 border border-stone-100 dark:border-slate-700/50 text-gray-800 dark:text-gray-100 rounded-2xl md:rounded-[2rem] rounded-tl-sm shadow-xl'
+                                                : 'bg-gradient-to-br from-indigo-50 to-white dark:from-indigo-900/20 dark:to-slate-800/90 border border-indigo-200 dark:border-indigo-700/50 text-gray-800 dark:text-gray-100 rounded-2xl md:rounded-[2rem] rounded-tl-sm shadow-xl shadow-indigo-500/10'
                                                 }`}
                                         >
                                             <p className="leading-relaxed text-sm md:text-lg whitespace-pre-wrap font-medium">{msg.text}</p>
@@ -1417,7 +1427,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                             </p>
                         )}
                         <div
-                            className={`flex items-end gap-2 md:gap-3 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] p-2 md:p-3 shadow-xl shadow-stone-200/50 dark:shadow-none focus-within:ring-4 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all duration-300 ${freeChatBlocked || chatQuotaExceeded ? 'opacity-60' : ''}`}
+                            className={`flex items-end gap-2 md:gap-3 bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-700 rounded-2xl md:rounded-[2rem] p-2 md:p-3 shadow-xl shadow-stone-200/50 dark:shadow-none focus-within:ring-4 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 focus-within:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all duration-500 ${freeChatBlocked || chatQuotaExceeded ? 'opacity-60' : ''}`}
                         >
                             <textarea
                                 value={inputText}
@@ -1450,7 +1460,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                         <div className="text-center mt-2 md:mt-3 flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
                             <Sparkles size={10} className="text-indigo-500" />
                             <p className="text-[9px] md:text-[10px] text-gray-500 font-bold tracking-wide">
-                                Powered by Et3alem Bel Araby AI v2.0
+                                Powered by KeyLang AI v2.0
                             </p>
                         </div>
                     </div>
@@ -1534,7 +1544,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                             handleClearSession();
                         }}
                         className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-sm font-bold transition-all duration-300 ${assistantMode === m.id
-                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-xl shadow-indigo-500/30'
+                            ? (m.id === 'chat' ? 'bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-xl shadow-cyan-500/30' : m.id === 'voice' ? 'bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl shadow-rose-500/30' : 'bg-gradient-to-r from-fuchsia-500 to-orange-500 text-white shadow-xl shadow-orange-500/30')
                             : 'text-gray-600 dark:text-gray-400 hover:bg-white/10'
                             }`}
                     >
@@ -1653,7 +1663,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
                     >
                         <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] text-center shadow-2xl">
                             <div className="flex items-center justify-center gap-2 mb-3 text-indigo-400 uppercase text-xs font-bold tracking-widest">
-                                <Bot size={14} /> اتعلم بالعربي AI
+                                <Bot size={14} /> KeyLang AI
                             </div>
                             <p
                                 dir={conversationDir}
@@ -1672,17 +1682,17 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({
 
 
     return (
-        <div className="h-screen bg-[#fafafa] dark:bg-[#0a0a0c] font-sans overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 w-full bg-[#fafafa] dark:bg-[#0a0a0c] font-sans overflow-hidden flex flex-col">
             {/* Dynamic Background */}
             <div className="absolute inset-0 pointer-events-none z-0">
                 <div className="absolute top-[-20%] left-[-10%] w-[50vh] h-[50vh] bg-indigo-500/10 rounded-full blur-[100px] animate-blob" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[50vh] h-[50vh] bg-rose-500/10 rounded-full blur-[100px] animate-blob animation-delay-2000" />
             </div>
 
-            <div className="relative z-10 w-full max-w-[1800px] mx-auto h-full flex flex-col p-4 md:p-6 lg:p-8">
+            <div className="relative z-10 w-full h-full flex flex-col p-4 md:p-6 lg:p-8 flex-1 min-h-0">
                 {renderHeader()}
 
-                <div className="flex-1 min-h-0 relative">
+                <div className="flex-1 min-h-0 w-full relative">
                     <AnimatePresence mode='wait'>
                         <motion.div
                             key={assistantMode}

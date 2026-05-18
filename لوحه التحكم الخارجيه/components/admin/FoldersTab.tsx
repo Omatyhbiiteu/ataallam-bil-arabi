@@ -9,6 +9,7 @@ import { Folder, Card } from '../../types';
 import { AdminAPI } from '../../services/apiClient';
 import { AdminLang } from './AdminSidebar';
 import { ConfirmModal } from '../ConfirmModal';
+import { CardImageLibraryPanel } from './CardImageLibraryPanel';
 
 const generateId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -24,6 +25,35 @@ const FOLDER_COLORS = [
 ];
 
 const MAX_DEPTH = 2; // root → sub → sub-sub
+const MAX_CARD_IMAGE_SIZE = 5 * 1024 * 1024;
+const CARD_IMAGE_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp';
+type CardImageFit = 'wide' | 'portrait';
+
+const CARD_IMAGE_FIT_OPTIONS: Array<{ value: CardImageFit; label: string; description: string }> = [
+    { value: 'wide', label: 'عريض', description: 'لصور 16:9 أو الصور الأفقية' },
+    { value: 'portrait', label: 'طولي', description: 'لصور 9:16 أو الصور الرأسية' },
+];
+
+const inferImageFit = (width: number, height: number): CardImageFit => {
+    if (!width || !height) return 'wide';
+    return width / height < 0.85 ? 'portrait' : 'wide';
+};
+
+const detectImageFitFromFile = (file: File): Promise<CardImageFit> => (
+    new Promise((resolve) => {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(inferImageFit(img.naturalWidth, img.naturalHeight));
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve('wide');
+        };
+        img.src = objectUrl;
+    })
+);
 
 const getFolderDepth = (folderId: string | null, allFolders: Folder[]): number => {
     if (!folderId) return -1;
@@ -85,7 +115,9 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
     // Card Form
     const [showCardForm, setShowCardForm] = useState(false);
     const [editingCardId, setEditingCardId] = useState<string | null>(null);
-    const [cardForm, setCardForm] = useState({ front: '', back: '', image: '' });
+    const [cardForm, setCardForm] = useState<{ front: string; back: string; image: string; imageFit: CardImageFit }>({ front: '', back: '', image: '', imageFit: 'wide' });
+    const [cardImageUploading, setCardImageUploading] = useState(false);
+    const [cardImageFileName, setCardImageFileName] = useState<string | null>(null);
 
     // ─── Computed ───────────────────────────────────────────────
     const currentFolder = useMemo(
@@ -133,7 +165,7 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
             name: newFolder.name.trim(),
             color: newFolder.color,
             parentId: currentFolderId ?? undefined,
-            isSystem: !currentFolderId,
+            isSystem: true,
             contentLang,
         };
         setSaving(true);
@@ -183,18 +215,44 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
 
     const openNewCard = () => {
         setEditingCardId(null);
-        setCardForm({ front: '', back: '', image: '' });
+        setCardForm({ front: '', back: '', image: '', imageFit: 'wide' });
+        setCardImageFileName(null);
         setShowCardForm(true);
     };
 
     const openEditCard = (card: Card) => {
         setEditingCardId(card.id);
-        setCardForm({ front: card.frontText, back: card.backText, image: card.frontImage || '' });
+        setCardForm({
+            front: card.frontText,
+            back: card.backText,
+            image: card.frontImage || '',
+            imageFit: card.frontImageFit === 'portrait' ? 'portrait' : 'wide',
+        });
+        setCardImageFileName(null);
         setShowCardForm(true);
     };
 
+    const makeCardPayload = (id: string | undefined, now: number) => ({
+        ...(id ? { id } : {}),
+        folderId: currentFolderId!,
+        frontText: cardForm.front.trim(),
+        backText: cardForm.back.trim(),
+        frontImage: cardForm.image || null,
+        frontImageFit: cardForm.image ? cardForm.imageFit : null,
+        isSystem: true,
+        nextReview: now,
+        interval: 0,
+        reviews: 0,
+        easeFactor: 2.5,
+        status: 'new',
+    });
+
     const handleSaveCard = async () => {
         if (!currentFolderId) {
+            return;
+        }
+        if (cardImageUploading) {
+            showToast('استنى لحد ما رفع صورة البطاقة يخلص', 'info');
             return;
         }
         if (!cardForm.front.trim() || !cardForm.back.trim()) {
@@ -210,7 +268,8 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                     folderId: currentFolderId,
                     frontText: cardForm.front.trim(),
                     backText: cardForm.back.trim(),
-                    frontImage: cardForm.image || undefined,
+                    frontImage: cardForm.image || null,
+                    frontImageFit: cardForm.image ? cardForm.imageFit : null,
                     isSystem: true,
                 };
                 if (adminLang === 'both') {
@@ -220,29 +279,17 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                     await AdminAPI.updateSystemCard(storageLang, editingCardId, payload);
                 }
             } else {
-                const id = generateId();
-                const payload = {
-                    id,
-                    folderId: currentFolderId,
-                    frontText: cardForm.front.trim(),
-                    backText: cardForm.back.trim(),
-                    frontImage: cardForm.image || undefined,
-                    isSystem: true,
-                    nextReview: now,
-                    interval: 0,
-                    reviews: 0,
-                    easeFactor: 2.5,
-                    status: 'new',
-                };
                 if (adminLang === 'both') {
-                    await AdminAPI.createSystemCard('en', payload);
-                    await AdminAPI.createSystemCard('de', payload);
+                    const id = generateId();
+                    await AdminAPI.createSystemCard('en', makeCardPayload(id, now));
+                    await AdminAPI.createSystemCard('de', makeCardPayload(id, now));
                 } else {
-                    await AdminAPI.createSystemCard(storageLang, payload);
+                    await AdminAPI.createSystemCard(storageLang, makeCardPayload(generateId(), now));
                 }
             }
             await refreshFoldersFromApi();
-            setCardForm({ front: '', back: '', image: '' });
+            setCardForm({ front: '', back: '', image: '', imageFit: 'wide' });
+            setCardImageFileName(null);
             setEditingCardId(null);
             setShowCardForm(false);
             showToast(wasEditing ? 'تم تعديل البطاقة ✅' : 'تم إضافة البطاقة 🎉', 'success');
@@ -275,12 +322,35 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
         }
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => setCardForm(p => ({ ...p, image: reader.result as string }));
-        reader.readAsDataURL(file);
+        if (!file.type.startsWith('image/')) {
+            showToast('اختار ملف صورة فقط', 'error');
+            return;
+        }
+        if (file.size > MAX_CARD_IMAGE_SIZE) {
+            showToast('حجم صورة البطاقة كبير جداً. الحد الأقصى 5 ميجابايت', 'error');
+            return;
+        }
+
+        setCardImageUploading(true);
+        setCardImageFileName(file.name);
+        try {
+            const imageFit = await detectImageFitFromFile(file);
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('kind', 'image');
+            const { url } = await AdminAPI.uploadMedia(fd);
+            setCardForm(p => ({ ...p, image: url, imageFit }));
+            showToast('تم رفع صورة البطاقة وربط الرابط', 'success');
+        } catch (err: any) {
+            setCardImageFileName(null);
+            showToast(err?.message || 'فشل رفع صورة البطاقة', 'error');
+        } finally {
+            setCardImageUploading(false);
+        }
     };
 
     // ─── Render ─────────────────────────────────────────────────
@@ -332,6 +402,10 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                     )}
                 </div>
             </header>
+
+            {!currentFolderId && (
+                <CardImageLibraryPanel adminLang={adminLang} learningLang={learningLang} showToast={showToast} />
+            )}
 
             {/* ── Breadcrumbs ── */}
             {breadcrumbs.length > 0 && (
@@ -454,11 +528,22 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                                     className="bg-white/5 rounded-2xl p-5 border border-white/5 group hover:bg-white/10 transition-all flex flex-col"
                                 >
                                     {card.frontImage && (
-                                        <img
-                                            src={card.frontImage}
-                                            alt=""
-                                            className="w-full h-28 object-cover rounded-xl mb-3"
-                                        />
+                                        <div className={`relative w-full ${card.frontImageFit === 'portrait' ? 'h-40 max-w-28 mx-auto' : 'h-28'} rounded-xl mb-3 overflow-hidden bg-white/5`}>
+                                            <img
+                                                src={card.frontImage}
+                                                alt=""
+                                                aria-hidden="true"
+                                                className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35"
+                                            />
+                                            <img
+                                                src={card.frontImage}
+                                                alt=""
+                                                className={card.frontImageFit === 'portrait'
+                                                    ? 'relative z-[1] h-full w-auto max-w-full object-contain p-2 mx-auto'
+                                                    : 'relative z-[1] w-full h-full object-cover'
+                                                }
+                                            />
+                                        </div>
                                     )}
                                     <p className="text-white font-black text-base mb-1 truncate">{card.frontText}</p>
                                     <p className="text-gray-500 text-xs mb-4 truncate">{card.backText}</p>
@@ -553,9 +638,9 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="bg-slate-900 w-full max-w-lg rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl"
+                            className="bg-slate-900 w-full max-w-lg max-h-[90vh] rounded-[3rem] overflow-hidden border border-white/10 shadow-2xl flex flex-col"
                         >
-                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5 shrink-0">
                                 <h3 className="text-xl font-black text-white">
                                     {editingCardId ? 'تعديل البطاقة' : 'بطاقة جديدة'}
                                 </h3>
@@ -563,7 +648,7 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                                     <X className="text-gray-400" />
                                 </button>
                             </div>
-                            <div className="p-8 space-y-5">
+                            <div className="p-8 space-y-5 overflow-y-auto">
                                 <div>
                                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">الوجه الأمامي (السؤال / الكلمة)</label>
                                     <input
@@ -588,22 +673,75 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">صورة (اختياري)</label>
+                                    <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                                        <div className="flex items-center justify-between gap-3 mb-3">
+                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">مقاس صورة الكارت</span>
+                                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${cardForm.imageFit === 'portrait' ? 'bg-red-500/10 text-red-300' : 'bg-white/10 text-gray-300'}`}>
+                                                {cardForm.imageFit === 'portrait' ? 'طولي' : 'عريض'}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {CARD_IMAGE_FIT_OPTIONS.map((option) => {
+                                                const selected = cardForm.imageFit === option.value;
+                                                return (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        disabled={cardImageUploading}
+                                                        onClick={() => setCardForm(p => ({ ...p, imageFit: option.value }))}
+                                                        className={`rounded-2xl border p-3 text-right transition disabled:opacity-50 ${
+                                                            selected
+                                                                ? 'border-red-500/70 bg-red-500/10 text-red-300'
+                                                                : 'border-white/10 bg-white/5 text-gray-400 hover:border-red-500/30 hover:text-white'
+                                                        }`}
+                                                    >
+                                                        <span className="block text-sm font-black">{option.label}</span>
+                                                        <span className="block text-[10px] font-bold leading-4 opacity-75 mt-1">{option.description}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                     <div
-                                        onClick={() => (document.getElementById('adminCardImg') as HTMLInputElement)?.click()}
-                                        className="w-full aspect-video bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center cursor-pointer hover:border-red-500/30 transition overflow-hidden"
+                                        onClick={() => !cardImageUploading && (document.getElementById('adminCardImg') as HTMLInputElement)?.click()}
+                                        className={`w-full ${cardForm.image && cardForm.imageFit === 'portrait' ? 'max-w-[180px] mx-auto aspect-[9/16]' : 'aspect-video'} bg-white/5 border-2 border-dashed border-white/10 rounded-2xl flex items-center justify-center hover:border-red-500/30 transition overflow-hidden relative ${cardImageUploading ? 'cursor-wait opacity-80' : 'cursor-pointer'}`}
                                     >
                                         {cardForm.image ? (
-                                            <img src={cardForm.image} className="w-full h-full object-cover" alt="" />
+                                            <>
+                                                <img src={cardForm.image} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                                <img
+                                                    src={cardForm.image}
+                                                    className={cardForm.imageFit === 'portrait'
+                                                        ? 'relative z-[1] h-full w-auto max-w-full object-contain p-2'
+                                                        : 'relative z-[1] w-full h-full object-cover'
+                                                    }
+                                                    alt=""
+                                                />
+                                            </>
                                         ) : (
                                             <div className="text-center text-gray-600">
                                                 <ImageIcon size={28} className="mx-auto mb-2" />
-                                                <p className="text-xs font-bold">انقر لاختيار صورة</p>
+                                                <p className="text-xs font-bold">{cardImageUploading ? 'جاري رفع الصورة...' : 'انقر لاختيار صورة'}</p>
+                                            </div>
+                                        )}
+                                        {cardImageUploading && (
+                                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3 text-white">
+                                                <div className="w-10 h-10 rounded-full border-4 border-red-500 border-t-transparent animate-spin" />
+                                                <p className="text-xs font-black">{cardImageFileName || 'جاري رفع الصورة...'}</p>
                                             </div>
                                         )}
                                     </div>
-                                    <input id="adminCardImg" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                    <input id="adminCardImg" type="file" accept={CARD_IMAGE_ACCEPT} className="hidden" disabled={cardImageUploading} onChange={handleImageUpload} />
                                     {cardForm.image && (
-                                        <button onClick={() => setCardForm(p => ({ ...p, image: '' }))} className="mt-2 text-xs text-red-500 hover:text-red-400 font-bold">
+                                        <button
+                                            type="button"
+                                            disabled={cardImageUploading}
+                                            onClick={() => {
+                                                setCardForm(p => ({ ...p, image: '', imageFit: 'wide' }));
+                                                setCardImageFileName(null);
+                                            }}
+                                            className="mt-2 text-xs text-red-500 hover:text-red-400 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
                                             إزالة الصورة
                                         </button>
                                     )}
@@ -611,11 +749,11 @@ export const FoldersTab: React.FC<FoldersTabProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => void handleSaveCard()}
-                                    disabled={saving}
+                                    disabled={saving || cardImageUploading}
                                     className="w-full bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white py-4 rounded-[2rem] font-black shadow-xl active:scale-95 transition flex items-center justify-center gap-2"
                                 >
                                     <Save size={18} />
-                                    {saving ? 'جاري الحفظ…' : editingCardId ? 'حفظ التعديلات' : 'إضافة البطاقة'}
+                                    {cardImageUploading ? 'جاري رفع الصورة…' : saving ? 'جاري الحفظ…' : editingCardId ? 'حفظ التعديلات' : 'إضافة البطاقة'}
                                 </button>
                             </div>
                         </m.div>

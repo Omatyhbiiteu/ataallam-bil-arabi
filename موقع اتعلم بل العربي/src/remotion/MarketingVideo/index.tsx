@@ -17,7 +17,7 @@ export const MarketingVideo = () => {
         <AbsoluteFill
             style={{
                 backgroundColor: '#07070d',
-                fontFamily: 'Cairo, Outfit, system-ui, sans-serif',
+                fontFamily: 'var(--font-arabic), var(--font-latin), system-ui, sans-serif',
                 color: 'white',
                 direction: 'rtl',
             }}

@@ -143,7 +143,7 @@ export const LessonPreviewModal: React.FC<LessonPreviewModalProps> = ({
                                                     allowFullScreen
                                                 />
                                             ) : (
-                                                <video src={lesson.videoUrl} controls className="w-full h-full" />
+                                                <video src={lesson.videoUrl} controls controlsList="nodownload noplaybackrate" disablePictureInPicture onContextMenu={(e) => e.preventDefault()} className="w-full h-full" />
                                             )}
                                         </div>
                                     )}
@@ -153,13 +153,14 @@ export const LessonPreviewModal: React.FC<LessonPreviewModalProps> = ({
                                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 justify-end">
                                                 <Headphones size={14} className="text-indigo-400" /> الاستماع
                                             </h3>
-                                            <audio src={lesson.audioUrl} controls className="w-full accent-indigo-500 rounded-xl" />
+                                            <audio src={lesson.audioUrl} controls controlsList="nodownload noplaybackrate" onContextMenu={(e) => e.preventDefault()} className="w-full accent-indigo-500 rounded-xl" />
                                         </div>
                                     )}
 
                                     {lesson.image && !lesson.videoUrl && (
                                         <div className="relative z-10 max-w-3xl mx-auto rounded-[2rem] overflow-hidden ring-1 ring-white/10 aspect-video bg-slate-900">
-                                            <img src={lesson.image} alt="" className="w-full h-full object-cover" />
+                                            <img src={lesson.image} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" />
+                                            <img src={lesson.image} alt="" className="relative z-[1] w-full h-full object-contain p-3" />
                                         </div>
                                     )}
 

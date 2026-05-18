@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     Users, TrendingUp, Clock, AlertCircle,
-    BookOpen, CheckCircle, ArrowUpRight, ArrowDownRight, Activity, RefreshCw
+    BookOpen, CheckCircle, ArrowUpRight, ArrowDownRight, Activity, RefreshCw, Star, Gauge, Search, ChevronDown
 } from 'lucide-react';
 import { AnalyticsDashboardData } from '../../types';
 import { AdminAPI } from '../../services/apiClient';
@@ -24,6 +24,7 @@ type ApiDashboardResponse = {
     retention: AnalyticsDashboardData['retention'];
     topStories: AnalyticsDashboardData['topStories'];
     difficultQuestions: AnalyticsDashboardData['difficultQuestions'];
+    lessonRatings?: AnalyticsDashboardData['lessonRatings'];
 };
 
 export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ adminLang }) => {
@@ -45,6 +46,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ adminLang }) => {
             retention: res.retention ?? [],
             topStories: res.topStories ?? [],
             difficultQuestions: res.difficultQuestions ?? [],
+            lessonRatings: res.lessonRatings,
         });
     }, []);
 
@@ -185,6 +187,10 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ adminLang }) => {
                 />
             </div>
 
+            {data.lessonRatings && (
+                <LessonRatingsPanel data={data.lessonRatings} />
+            )}
+
             <div className="grid grid-cols-1 gap-8">
                 <div className="bg-slate-900 border border-white/5 rounded-[2.5rem] p-8 overflow-hidden">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
@@ -288,6 +294,241 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ adminLang }) => {
         </motion.div>
     );
 };
+
+const statusClasses: Record<string, string> = {
+    insufficient: 'bg-gray-500/10 text-gray-300 border-gray-500/20',
+    excellent: 'bg-green-500/10 text-green-300 border-green-500/25',
+    very_good: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+    average: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
+    weak: 'bg-orange-500/10 text-orange-300 border-orange-500/25',
+    very_bad: 'bg-red-500/10 text-red-300 border-red-500/25',
+};
+
+const barClasses: Record<string, string> = {
+    '5': 'bg-green-400',
+    '4': 'bg-emerald-400',
+    '3': 'bg-amber-400',
+    '2': 'bg-orange-400',
+    '1': 'bg-red-400',
+};
+
+const LessonRatingsPanel = ({ data }: { data: NonNullable<AnalyticsDashboardData['lessonRatings']> }) => {
+    const overview = data.overview;
+    const lessons = data.lessons ?? [];
+    const [isLessonsOpen, setIsLessonsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const filteredLessons = useMemo(() => {
+        if (!normalizedSearch) {
+            return lessons;
+        }
+
+        return lessons.filter((lesson) => {
+            const searchable = [
+                lesson.lessonTitle,
+                lesson.moduleTitle ?? '',
+                lesson.lang,
+                lesson.averageRating.toFixed(1),
+                lesson.satisfaction.label,
+            ].join(' ').toLowerCase();
+
+            return searchable.includes(normalizedSearch);
+        });
+    }, [lessons, normalizedSearch]);
+    const showLessonsList = isLessonsOpen || normalizedSearch.length > 0;
+
+    return (
+        <section className="bg-slate-900 border border-white/5 rounded-[2.5rem] p-6 md:p-8 overflow-hidden">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-7">
+                <div>
+                    <h3 className="text-xl font-black text-white flex items-center gap-2">
+                        <Star className="text-amber-400 fill-amber-400" />
+                        تقييمات الدروس
+                    </h3>
+                    <p className="text-sm text-gray-400 font-medium mt-2">
+                        مؤشر رضا الطلاب محسوب من متوسط النجوم وعدد التقييمات لكل درس.
+                    </p>
+                </div>
+                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl border text-sm font-black ${statusClasses[overview.satisfaction.status] ?? statusClasses.insufficient}`}>
+                    <Gauge size={16} />
+                    {overview.satisfaction.label}
+                </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-7">
+                <RatingMiniStat label="إجمالي التقييمات" value={overview.totalRatings.toLocaleString()} />
+                <RatingMiniStat label="دروس تم تقييمها" value={overview.ratedLessons.toLocaleString()} />
+                <RatingMiniStat label="المتوسط العام" value={`${overview.averageRating.toFixed(1)} ★`} />
+                <RatingMiniStat label="حد الثقة" value={`${overview.minimumReliableRatings}+ تقييم`} />
+            </div>
+
+            {lessons.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
+                    <p className="text-gray-400 font-bold">لا توجد تقييمات دروس حتى الآن.</p>
+                    <p className="text-xs text-gray-500 mt-2">ستظهر البيانات هنا بعد أن يقيم الطلاب الدروس من المسار التعليمي.</p>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    <div className="space-y-4">
+                        <LessonRatingHighlight title="أفضل رد فعل" lesson={overview.bestLesson} tone="good" />
+                        <LessonRatingHighlight title="يحتاج مراجعة" lesson={overview.lowestLesson} tone="bad" />
+                    </div>
+
+                    <div className="rounded-3xl border border-white/5 bg-white/[0.03] overflow-hidden">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between p-4 border-b border-white/5">
+                            <button
+                                type="button"
+                                onClick={() => setIsLessonsOpen((value) => !value)}
+                                className="inline-flex items-center justify-between gap-3 rounded-2xl bg-white/[0.04] border border-white/10 px-4 py-3 text-right hover:bg-white/[0.07] hover:border-white/20 transition-colors"
+                            >
+                                <span>
+                                    <span className="block text-sm font-black text-white">قائمة الدروس المقيمة</span>
+                                    <span className="block text-xs text-gray-500 mt-1">
+                                        {filteredLessons.length} من {lessons.length} درس
+                                    </span>
+                                </span>
+                                <ChevronDown
+                                    size={18}
+                                    className={`text-gray-400 transition-transform duration-300 ${showLessonsList ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            <label className="relative block lg:w-[360px]">
+                                <Search size={17} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                                <input
+                                    type="search"
+                                    value={searchTerm}
+                                    onFocus={() => setIsLessonsOpen(true)}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                    placeholder="ابحث باسم الدرس أو الوحدة..."
+                                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 py-3 pr-11 pl-4 text-sm font-bold text-white outline-none placeholder:text-gray-600 focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/10 transition"
+                                />
+                            </label>
+                        </div>
+
+                        {showLessonsList && (
+                            <div className="max-h-[560px] overflow-y-auto p-4 space-y-3">
+                                {filteredLessons.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/50 p-6 text-center text-sm font-bold text-gray-500">
+                                        لا يوجد درس مطابق للبحث الحالي.
+                                    </div>
+                                ) : (
+                                    filteredLessons.map((lesson) => (
+                                        <div
+                                            key={`${lesson.lang}-${lesson.lessonId}`}
+                                            className="grid grid-cols-1 gap-4 rounded-2xl border border-white/5 bg-slate-950/45 p-4 transition-colors hover:border-white/10 hover:bg-slate-950/70 xl:grid-cols-[1.1fr_0.55fr_0.55fr_1fr]"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="font-black text-white truncate" title={lesson.lessonTitle}>{lesson.lessonTitle}</div>
+                                                <div className="text-xs text-gray-500 mt-1 truncate" title={lesson.moduleTitle || ''}>
+                                                    {lesson.lang.toUpperCase()} · {lesson.moduleTitle || 'بدون وحدة'}
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[10px] text-gray-500 font-bold mb-1">المتوسط</div>
+                                                <div className="whitespace-nowrap">
+                                                    <span className="font-black text-amber-300">{lesson.averageRating.toFixed(1)} ★</span>
+                                                    <span className="text-xs text-gray-500 mr-2">/ {lesson.ratingsCount}</span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[10px] text-gray-500 font-bold mb-1">الحالة</div>
+                                                <span className={`inline-flex px-3 py-1 rounded-full border text-xs font-black ${statusClasses[lesson.satisfaction.status] ?? statusClasses.insufficient}`}>
+                                                    {lesson.satisfaction.label}
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <div className="text-[10px] text-gray-500 font-bold mb-2">توزيع النجوم</div>
+                                                <RatingDistribution distribution={lesson.distribution} total={lesson.ratingsCount} />
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+};
+
+const RatingMiniStat = ({ label, value }: { label: string; value: string }) => (
+    <div className="rounded-2xl bg-white/[0.04] border border-white/5 p-4">
+        <div className="text-2xl font-black text-white">{value}</div>
+        <div className="text-xs text-gray-500 font-bold mt-1">{label}</div>
+    </div>
+);
+
+const LessonRatingHighlight = ({
+    title,
+    lesson,
+    tone,
+}: {
+    title: string;
+    lesson: NonNullable<AnalyticsDashboardData['lessonRatings']>['overview']['bestLesson'];
+    tone: 'good' | 'bad';
+}) => {
+    const toneClass = tone === 'good'
+        ? 'from-green-500/10 to-emerald-500/5 border-green-500/20'
+        : 'from-red-500/10 to-orange-500/5 border-red-500/20';
+
+    if (!lesson) {
+        return (
+            <div className={`rounded-3xl bg-gradient-to-br ${toneClass} border p-5`}>
+                <div className="text-sm text-gray-400 font-bold">{title}</div>
+                <div className="text-white font-black mt-2">لا توجد بيانات</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`rounded-3xl bg-gradient-to-br ${toneClass} border p-5`}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+                <span className="text-sm text-gray-400 font-bold">{title}</span>
+                <span className={`px-3 py-1 rounded-full border text-xs font-black ${statusClasses[lesson.satisfaction.status] ?? statusClasses.insufficient}`}>
+                    {lesson.satisfaction.label}
+                </span>
+            </div>
+            <div className="text-white font-black line-clamp-1" title={lesson.lessonTitle}>{lesson.lessonTitle}</div>
+            <div className="text-xs text-gray-500 mt-1 line-clamp-1">{lesson.moduleTitle || '—'}</div>
+            <div className="mt-4 flex items-end justify-between gap-4">
+                <div className="text-3xl font-black text-amber-300">{lesson.averageRating.toFixed(1)} ★</div>
+                <div className="text-sm text-gray-400 font-bold">{lesson.ratingsCount} تقييم</div>
+            </div>
+            {lesson.satisfaction.description && (
+                <p className="text-xs text-gray-400 leading-6 mt-3">{lesson.satisfaction.description}</p>
+            )}
+        </div>
+    );
+};
+
+const RatingDistribution = ({
+    distribution,
+    total,
+}: {
+    distribution: Record<'5' | '4' | '3' | '2' | '1', number>;
+    total: number;
+}) => (
+    <div className="space-y-1.5 w-64">
+        {(['5', '4', '3', '2', '1'] as const).map((star) => {
+            const count = distribution?.[star] ?? 0;
+            const width = total > 0 ? Math.max(4, Math.round((count / total) * 100)) : 0;
+            return (
+                <div key={star} className="flex items-center gap-2 text-[10px] text-gray-500">
+                    <span className="w-9 shrink-0">{star} ★</span>
+                    <div className="h-1.5 flex-1 rounded-full bg-slate-800 overflow-hidden">
+                        <div className={`h-full rounded-full ${barClasses[star]}`} style={{ width: `${width}%` }} />
+                    </div>
+                    <span className="w-8 shrink-0 text-left">{count}</span>
+                </div>
+            );
+        })}
+    </div>
+);
 
 const KPICard = ({
     icon: Icon,

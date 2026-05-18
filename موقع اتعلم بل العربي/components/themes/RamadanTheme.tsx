@@ -3,6 +3,14 @@ import { motion } from 'framer-motion';
 import { Cloud, Star, Fanoos } from './SharedElements';
 import { RamadanCannon, StreetZina } from './ThemeVisualsExtras';
 
+type ThemeLanguage = 'ar' | 'en' | 'de';
+
+const ramadanGreetings: Record<ThemeLanguage, { title: string; subtitle: string; dir: 'rtl' | 'ltr'; lang: string }> = {
+    ar: { title: 'رمضان كريم', subtitle: 'كل عام وأنتم بخير', dir: 'rtl', lang: 'ar' },
+    en: { title: 'Ramadan Kareem', subtitle: 'Wishing you a blessed month', dir: 'ltr', lang: 'en' },
+    de: { title: 'Gesegneten Ramadan', subtitle: 'Einen friedvollen Monat', dir: 'ltr', lang: 'de' },
+};
+
 // ============================================================
 // --- RAMADAN THEME COMPONENTS ---
 // ============================================================
@@ -276,7 +284,9 @@ export const RamadanMosque: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode })
     );
 };
 
-const RamadanTheme = ({ isDarkMode, density, visuals }: { isDarkMode: boolean; density: string; visuals: any }) => {
+const RamadanTheme = ({ isDarkMode, density, visuals, targetLanguage = 'ar' }: { isDarkMode: boolean; density: string; visuals: any; targetLanguage?: ThemeLanguage }) => {
+    const greeting = ramadanGreetings[targetLanguage] ?? ramadanGreetings.ar;
+
     return (
         <motion.div key="ramadan_l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="absolute inset-0">
             {/* Day Mode: Authentic Egyptian Street Vibe */}
@@ -311,6 +321,23 @@ const RamadanTheme = ({ isDarkMode, density, visuals }: { isDarkMode: boolean; d
                             <Fanoos size={f.size * 0.8} isDarkMode={isDarkMode} color="#e65100" />
                         </motion.div>
                     ))}
+
+                    <motion.div
+                        className="absolute top-[18%] left-1/2 -translate-x-1/2 text-center pointer-events-none z-20"
+                        dir={greeting.dir}
+                        lang={greeting.lang}
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                        <div className="font-black text-3xl md:text-5xl rounded-2xl border border-amber-500/25 bg-white/60 px-7 py-3 text-amber-700 shadow-[0_12px_40px_rgba(180,83,9,0.18)] backdrop-blur">
+                            {greeting.title}
+                        </div>
+                        <motion.div className="text-amber-800/80 text-sm font-bold mt-2 tracking-widest"
+                            animate={{ opacity: [0.55, 1, 0.55] }}
+                            transition={{ duration: 2.4, repeat: Infinity }}>
+                            ✦ {greeting.subtitle} ✦
+                        </motion.div>
+                    </motion.div>
                 </>
             )}
 
@@ -399,17 +426,19 @@ const RamadanTheme = ({ isDarkMode, density, visuals }: { isDarkMode: boolean; d
                     {/* Glowing Ramadan greeting */}
                     <motion.div
                         className="absolute top-[20%] left-1/2 -translate-x-1/2 text-center pointer-events-none z-20"
+                        dir={greeting.dir}
+                        lang={greeting.lang}
                         animate={{ opacity: [0.7, 1, 0.7] }}
                         transition={{ duration: 4, repeat: Infinity }}
                     >
                         <div className="font-black text-3xl md:text-5xl"
                             style={{ color: '#ffab00', textShadow: '0 0 30px rgba(255,171,0,0.8), 0 0 60px rgba(255,171,0,0.4)', fontFamily: 'serif' }}>
-                            رمضان كريم
+                            {greeting.title}
                         </div>
                         <motion.div className="text-amber-300/70 text-sm font-bold mt-2 tracking-widest"
                             animate={{ opacity: [0.5, 1, 0.5] }}
                             transition={{ duration: 2, repeat: Infinity }}>
-                            ✦ ✦ ✦
+                            ✦ {greeting.subtitle} ✦
                         </motion.div>
                     </motion.div>
                 </>

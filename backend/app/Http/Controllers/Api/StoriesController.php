@@ -28,7 +28,8 @@ class StoriesController extends Controller
         $rows = Story::query()
             ->where('lang', $lang)
             ->where('is_active', true)
-            ->orderByDesc('updated_at')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->limit(500)
             ->get();
 
@@ -80,6 +81,7 @@ class StoriesController extends Controller
             'difficulty' => $s->difficulty,
             'tags' => is_array($s->tags) ? $s->tags : null,
             'viewCount' => $s->view_count,
+            'createdAt' => optional($s->created_at)->toISOString(),
         ];
 
         if ($includeContent) {

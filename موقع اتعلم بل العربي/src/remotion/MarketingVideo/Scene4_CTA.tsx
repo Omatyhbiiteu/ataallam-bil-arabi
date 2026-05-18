@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 const guarantees = [
@@ -38,14 +38,12 @@ export const CTA = () => {
         <AbsoluteFill
             style={{
                 backgroundColor: '#07070d',
-                fontFamily: 'Cairo, system-ui, sans-serif',
+                fontFamily: 'var(--font-arabic), system-ui, sans-serif',
                 color: '#f8fafc',
                 direction: 'rtl',
                 overflow: 'hidden',
             }}
         >
-            <Audio src={staticFile('audio/scene4.mp3')} volume={1} />
-
             {/* Ambient orbs — very slow drift */}
             <div style={{ position: 'absolute', width: '65%', height: '65%', right: '-15%', top: '-20%', background: 'radial-gradient(circle, rgba(245,158,11,0.28) 0%, transparent 60%)', filter: 'blur(100px)', transform: `scale(${pulseOrbA})` }} />
             <div style={{ position: 'absolute', width: '50%', height: '50%', left: '-10%', bottom: '-15%', background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 60%)', filter: 'blur(90px)', transform: `scale(${pulseOrbB})` }} />
@@ -82,14 +80,14 @@ export const CTA = () => {
                     </div>
 
                     <h2 style={{ margin: 0, fontSize: f(82), fontWeight: 900, lineHeight: 1.07, letterSpacing: '-0.01em' }}>
-                        اتقن لغة جديدة
+                        اتقن الإنجليزي أو الألماني
                         <span style={{ display: 'block', backgroundImage: 'linear-gradient(100deg, #fbbf24 0%, #f97316 50%, #fb923c 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>
                             بأقل من 2 جنيه يومياً.
                         </span>
                     </h2>
 
                     <p style={{ margin: `${s(18)}px 0 0`, fontSize: f(26), lineHeight: 1.65, color: 'rgba(226,232,240,0.8)', maxWidth: s(740), opacity: interpolate(frame, [10, 28], [0, 1], { extrapolateRight: 'clamp' }) }}>
-                        أكثر من 50,000 متعلم وثقوا في المنصة. حان دورك تبدأ بخطة ذكية وتجربة تفاعلية لا مثيل لها.
+                        ابدأ بخطة ذكية تجمع الدروس، الكروت، المراجعة، والذكاء الاصطناعي في تجربة واحدة.
                     </p>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: s(10), marginTop: s(26) }}>

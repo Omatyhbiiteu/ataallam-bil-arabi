@@ -9,7 +9,7 @@ import { AdminAPI } from '../../services/apiClient';
 
 interface SupportTabProps {
     tickets: SupportTicket[];
-    setTickets: (tickets: SupportTicket[]) => void;
+    setTickets: React.Dispatch<React.SetStateAction<SupportTicket[]>>;
     /** عند فتح تذكرة من إشعار المسؤول */
     initialSelectedTicketId?: string | null;
     onConsumedInitialTicket?: () => void;

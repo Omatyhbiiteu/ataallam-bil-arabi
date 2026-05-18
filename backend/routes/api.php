@@ -30,11 +30,18 @@ use App\Http\Controllers\Api\UserFolderController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\Api\UserSupportTicketController;
 use App\Http\Controllers\Api\LanguageAvailabilityController;
+use App\Http\Controllers\Api\ThemeSettingsController;
 use App\Http\Controllers\Api\AdminAnalyticsController;
 use App\Http\Controllers\Api\StoryQuizAttemptController;
 use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\PasswordRecoveryRequestController;
 use App\Http\Controllers\Api\AdminPasswordRecoveryRequestController;
+use App\Http\Controllers\Api\AdminCardImageAssetController;
+use App\Http\Controllers\Api\UserCardImageAssetController;
+use App\Http\Controllers\Api\GamesController;
+use App\Http\Controllers\Api\UserGamesController;
+use App\Http\Controllers\Api\AdminGamesController;
+use App\Http\Controllers\Api\UserLessonRatingController;
 
 Route::get('/health', function () {
     return response()->json([
@@ -63,8 +70,15 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware('auth:sanctum')->prefix('user')->group(function () {
     Route::post('/story-quiz-attempts', [StoryQuizAttemptController::class, 'store']);
+    Route::get('/lesson-ratings', [UserLessonRatingController::class, 'index']);
+    Route::post('/lesson-ratings', [UserLessonRatingController::class, 'store']);
     Route::post('/community/{lang}/sync', [CommunityController::class, 'sync']);
     Route::get('/community/{lang}', [CommunityController::class, 'show']);
+    Route::get('/games/usage', [UserGamesController::class, 'usage']);
+    Route::post('/games/{game}/start', [UserGamesController::class, 'start']);
+    Route::post('/games/attempts/{attempt}/complete', [UserGamesController::class, 'complete']);
+    Route::get('/card-image-assets/search', [UserCardImageAssetController::class, 'search']);
+    Route::post('/card-image-assets/{assetId}/use', [UserCardImageAssetController::class, 'useAsset']);
 });
 
 Route::middleware('auth:sanctum')->prefix('support')->group(function () {
@@ -100,6 +114,7 @@ Route::get('/content/{lang}/stories/{story}', [StoriesController::class, 'show']
 Route::get('/content/{lang}/curriculum', [CurriculumController::class, 'index']);
 Route::get('/content/{lang}/curriculum/{module}', [CurriculumController::class, 'show']);
 Route::get('/content/{lang}/sentences', [SentencesController::class, 'index']);
+Route::get('/content/{lang}/games', [GamesController::class, 'index']);
 Route::get('/content/{lang}/folders', [FolderController::class, 'index']);
 Route::get('/content/{lang}/cards', [CardController::class, 'index']);
 
@@ -113,6 +128,7 @@ Route::get('/payment-settings', [PaymentSettingsController::class, 'public']);
 // Platform Settings (Public)
 // ---------------------------
 Route::get('/settings/language-availability', [LanguageAvailabilityController::class, 'public']);
+Route::get('/settings/theme', [ThemeSettingsController::class, 'public']);
 
 Route::middleware('throttle:15,1')->post('/password-recovery-requests', [PasswordRecoveryRequestController::class, 'store']);
 
@@ -186,6 +202,12 @@ Route::prefix('admin')->group(function () {
         Route::put('/content/{lang}/sentences/{sentenceTopic}', [AdminSentencesController::class, 'update']);
         Route::delete('/content/{lang}/sentences/{sentenceTopic}', [AdminSentencesController::class, 'destroy']);
 
+        // Games (الألعاب التعليمية)
+        Route::get('/content/{lang}/games', [AdminGamesController::class, 'index']);
+        Route::post('/content/{lang}/games', [AdminGamesController::class, 'store']);
+        Route::put('/content/{lang}/games/{game}', [AdminGamesController::class, 'update']);
+        Route::delete('/content/{lang}/games/{game}', [AdminGamesController::class, 'destroy']);
+
         // Folders & Cards (المجلدات والبطاقات)
         Route::get('/content/{lang}/folders', [AdminFolderController::class, 'index']);
         Route::post('/content/{lang}/folders', [AdminFolderController::class, 'store']);
@@ -197,12 +219,25 @@ Route::prefix('admin')->group(function () {
         Route::put('/content/{lang}/cards/{cardId}', [AdminCardController::class, 'update']);
         Route::delete('/content/{lang}/cards/{cardId}', [AdminCardController::class, 'destroy']);
 
+        Route::get('/card-image-assets', [AdminCardImageAssetController::class, 'index']);
+        Route::post('/card-image-assets', [AdminCardImageAssetController::class, 'store']);
+        Route::put('/card-image-assets/{assetId}', [AdminCardImageAssetController::class, 'update']);
+        Route::delete('/card-image-assets/{assetId}', [AdminCardImageAssetController::class, 'destroy']);
+
         Route::get('/payment-settings', [PaymentSettingsController::class, 'adminShow']);
         Route::put('/payment-settings', [PaymentSettingsController::class, 'adminUpdate']);
 
         // Settings
         Route::get('/settings/language-availability', [LanguageAvailabilityController::class, 'adminShow']);
         Route::put('/settings/language-availability', [LanguageAvailabilityController::class, 'adminUpdate']);
+        Route::get('/settings/theme', [ThemeSettingsController::class, 'adminShow']);
+        Route::put('/settings/theme', [ThemeSettingsController::class, 'adminUpdate']);
+
+        // Backward-compatible theme endpoints used by older dashboard builds.
+        Route::get('/themes/schedules', [ThemeSettingsController::class, 'adminSchedules']);
+        Route::put('/themes/schedules/{id}', [ThemeSettingsController::class, 'adminUpdateSchedule']);
+        Route::get('/themes/custom', [ThemeSettingsController::class, 'adminCustom']);
+        Route::put('/themes/custom', [ThemeSettingsController::class, 'adminUpdateCustom']);
 
         Route::get('/analytics/dashboard', [AdminAnalyticsController::class, 'dashboard']);
     });

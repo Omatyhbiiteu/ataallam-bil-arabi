@@ -43,6 +43,7 @@ class UserCardController extends Controller
             'frontText' => ['required', 'string', 'max:65535'],
             'backText' => ['required', 'string', 'max:65535'],
             'frontImage' => ['nullable', 'string', 'max:16777215'],
+            'frontImageFit' => ['nullable', 'string', 'in:wide,portrait'],
         ]);
 
         $folder = ContentFolder::query()->where('lang', $lang)->where('id', $data['folderId'])->first();
@@ -64,6 +65,7 @@ class UserCardController extends Controller
             'front_text' => $data['frontText'],
             'back_text' => $data['backText'],
             'front_image' => $data['frontImage'] ?? null,
+            'front_image_fit' => $data['frontImageFit'] ?? null,
             'next_review' => $now,
             'interval' => 0,
             'reviews' => 0,
@@ -90,6 +92,7 @@ class UserCardController extends Controller
             'frontText' => ['sometimes', 'string', 'max:65535'],
             'backText' => ['sometimes', 'string', 'max:65535'],
             'frontImage' => ['nullable', 'string', 'max:16777215'],
+            'frontImageFit' => ['nullable', 'string', 'in:wide,portrait'],
             'nextReview' => ['sometimes', 'integer'],
             'interval' => ['sometimes', 'integer'],
             'reviews' => ['sometimes', 'integer'],
@@ -112,6 +115,7 @@ class UserCardController extends Controller
             'front_text' => $data['frontText'] ?? $card->front_text,
             'back_text' => $data['backText'] ?? $card->back_text,
             'front_image' => array_key_exists('frontImage', $data) ? $data['frontImage'] : $card->front_image,
+            'front_image_fit' => array_key_exists('frontImageFit', $data) ? $data['frontImageFit'] : $card->front_image_fit,
             'next_review' => $data['nextReview'] ?? $card->next_review,
             'interval' => $data['interval'] ?? $card->interval,
             'reviews' => $data['reviews'] ?? $card->reviews,
@@ -171,6 +175,7 @@ class UserCardController extends Controller
             'frontText' => (string) $c->front_text,
             'backText' => (string) $c->back_text,
             'frontImage' => $c->front_image ? (string) $c->front_image : null,
+            'frontImageFit' => in_array($c->front_image_fit, ['wide', 'portrait'], true) ? (string) $c->front_image_fit : null,
             'createdAt' => (int) (($c->created_at?->timestamp ?? time()) * 1000),
             'nextReview' => (int) $c->next_review,
             'interval' => (int) $c->interval,

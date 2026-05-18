@@ -27,17 +27,227 @@ const LEVELS = [
     { label: 'C2', color: 'bg-red-100 text-red-700 border-red-200' },
 ];
 
+type SmartAnalysisMode = 'correction' | 'translation';
+
+type SmartAnalysisResult = {
+    isCorrect: boolean;
+    correctedText: string;
+    explanation: string;
+    improvements: string[];
+    cefrLevel: string;
+    mistakes: { original: string; correction: string; reason: string }[];
+    mode?: SmartAnalysisMode;
+    sourceLanguage?: 'ar' | 'target';
+};
+
+type DictionaryCandidate = {
+    word: string;
+    arabic: string;
+    article?: string;
+    plural?: string;
+    partOfSpeech?: string;
+    usage?: string;
+    example?: string;
+    exampleTranslation?: string;
+    confidence?: string;
+    alternatives?: string[];
+    source?: string;
+};
+
+const targetLanguageLabel = (targetLanguage: 'en' | 'de', t?: any) =>
+    targetLanguage === 'de'
+        ? (t?.dictionary?.german || 'الألمانية')
+        : (t?.dictionary?.english || 'الإنجليزية');
+
+const translationCache = new Map<string, string | null>();
+const translationCandidatesCache = new Map<string, string[]>();
+const arabicCandidateCache = new Map<string, DictionaryCandidate[]>();
+
+const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((resolve) => {
+                timer = setTimeout(() => resolve(fallback), ms);
+            }),
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+};
+
 // --- HELPER: Fetch Translation ---
 const fetchTranslation = async (text: string, from: string, to: string) => {
+    const cacheKey = `${from}|${to}|${text.trim().toLowerCase()}`;
+    if (translationCache.has(cacheKey)) return translationCache.get(cacheKey) || null;
+
     try {
         const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
         const data = await res.json();
-        return data.responseData.translatedText;
+        const translated = data.responseData.translatedText || null;
+        translationCache.set(cacheKey, translated);
+        return translated;
     } catch (e) {
         console.error("Translation failed", e);
+        translationCache.set(cacheKey, null);
         return null;
     }
 };
+
+const fetchTranslationCandidates = async (text: string, from: string, to: string): Promise<string[]> => {
+    const cacheKey = `${from}|${to}|${text.trim().toLowerCase()}`;
+    const cached = translationCandidatesCache.get(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
+        const data = await res.json();
+        const matches = Array.isArray(data?.matches) ? data.matches : [];
+        const values = [
+            data?.responseData?.translatedText,
+            ...matches.map((match: { translation?: string }) => match.translation),
+        ];
+
+        const seen = new Set<string>();
+        const filteredValues = values
+            .map((value) => String(value || '').trim())
+            .filter((value) => {
+                const key = value.toLowerCase();
+                if (!value || key === text.toLowerCase() || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .slice(0, 5);
+        translationCandidatesCache.set(cacheKey, filteredValues);
+        return filteredValues;
+    } catch (e) {
+        console.error("Translation candidates failed", e);
+        translationCandidatesCache.set(cacheKey, []);
+        return [];
+    }
+};
+
+const normalizeArabicKey = (value: string) =>
+    value
+        .trim()
+        .replace(/[ًٌٍَُِّْـ]/g, '')
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+const localArabicCandidates: Record<'en' | 'de', Record<string, DictionaryCandidate[]>> = {
+    de: {
+        [normalizeArabicKey('عمل')]: [
+            { word: 'Arbeit', article: 'die', plural: 'Arbeiten', arabic: 'عمل / وظيفة / مجهود', partOfSpeech: 'noun', usage: 'الشغل أو الوظيفة بشكل عام', example: 'Ich gehe morgen zur Arbeit.', exampleTranslation: 'سأذهب إلى العمل غداً.', confidence: 'شائع' },
+            { word: 'Job', article: 'der', plural: 'Jobs', arabic: 'وظيفة / شغل', partOfSpeech: 'noun', usage: 'كلمة يومية للوظيفة', example: 'Ich suche einen neuen Job.', exampleTranslation: 'أبحث عن وظيفة جديدة.', confidence: 'يومي' },
+            { word: 'Werk', article: 'das', plural: 'Werke', arabic: 'عمل فني / مؤلف / مصنع', partOfSpeech: 'noun', usage: 'عمل إبداعي أو إنتاج كبير', example: 'Das ist ein wichtiges Werk.', exampleTranslation: 'هذا عمل مهم.', confidence: 'سياقي' },
+            { word: 'Handlung', article: 'die', plural: 'Handlungen', arabic: 'فعل / تصرف / أحداث قصة', partOfSpeech: 'noun', usage: 'لما المقصود فعل أو أحداث', example: 'Seine Handlung war mutig.', exampleTranslation: 'كان تصرفه شجاعاً.', confidence: 'سياقي' },
+        ],
+        [normalizeArabicKey('عين')]: [
+            { word: 'Auge', article: 'das', plural: 'Augen', arabic: 'عين الإنسان أو الحيوان', partOfSpeech: 'noun', usage: 'عضو النظر', example: 'Mein Auge tut weh.', exampleTranslation: 'عيني تؤلمني.', confidence: 'شائع' },
+            { word: 'Quelle', article: 'die', plural: 'Quellen', arabic: 'عين ماء / مصدر', partOfSpeech: 'noun', usage: 'مصدر الماء أو المعلومة', example: 'Die Quelle liegt im Wald.', exampleTranslation: 'عين الماء في الغابة.', confidence: 'سياقي' },
+        ],
+        [normalizeArabicKey('حساب')]: [
+            { word: 'Rechnung', article: 'die', plural: 'Rechnungen', arabic: 'فاتورة / حساب مطعم', partOfSpeech: 'noun', usage: 'عند الدفع أو الفاتورة', example: 'Die Rechnung bitte.', exampleTranslation: 'الحساب من فضلك.', confidence: 'شائع' },
+            { word: 'Konto', article: 'das', plural: 'Konten', arabic: 'حساب بنكي أو حساب مستخدم', partOfSpeech: 'noun', usage: 'للبنك أو الحساب الإلكتروني', example: 'Ich habe ein neues Konto.', exampleTranslation: 'لدي حساب جديد.', confidence: 'شائع' },
+            { word: 'Berechnung', article: 'die', plural: 'Berechnungen', arabic: 'عملية حسابية', partOfSpeech: 'noun', usage: 'الحساب الرياضي', example: 'Die Berechnung ist richtig.', exampleTranslation: 'الحساب صحيح.', confidence: 'سياقي' },
+        ],
+        [normalizeArabicKey('موعد')]: [
+            { word: 'Termin', article: 'der', plural: 'Termine', arabic: 'موعد رسمي / موعد طبي', partOfSpeech: 'noun', usage: 'موعد محدد مع شخص أو جهة', example: 'Ich habe einen Termin beim Arzt.', exampleTranslation: 'لدي موعد عند الطبيب.', confidence: 'شائع' },
+            { word: 'Verabredung', article: 'die', plural: 'Verabredungen', arabic: 'ميعاد شخصي / مقابلة', partOfSpeech: 'noun', usage: 'موعد بين أشخاص', example: 'Wir haben eine Verabredung.', exampleTranslation: 'لدينا موعد.', confidence: 'يومي' },
+        ],
+    },
+    en: {
+        [normalizeArabicKey('عمل')]: [
+            { word: 'work', arabic: 'عمل / شغل', partOfSpeech: 'noun/verb', usage: 'المعنى العام للعمل أو يشتغل', example: 'I have a lot of work today.', exampleTranslation: 'لدي عمل كثير اليوم.', confidence: 'شائع' },
+            { word: 'job', arabic: 'وظيفة', partOfSpeech: 'noun', usage: 'وظيفة أو شغل ثابت', example: 'She got a new job.', exampleTranslation: 'حصلت على وظيفة جديدة.', confidence: 'شائع' },
+            { word: 'act', arabic: 'فعل / تصرف', partOfSpeech: 'noun/verb', usage: 'لما المقصود تصرف أو فعل', example: 'That was a brave act.', exampleTranslation: 'كان ذلك تصرفاً شجاعاً.', confidence: 'سياقي' },
+        ],
+        [normalizeArabicKey('حساب')]: [
+            { word: 'account', arabic: 'حساب مستخدم أو بنك', partOfSpeech: 'noun', usage: 'حساب إلكتروني أو بنكي', example: 'I opened a new account.', exampleTranslation: 'فتحت حساباً جديداً.', confidence: 'شائع' },
+            { word: 'bill', arabic: 'فاتورة / حساب مطعم', partOfSpeech: 'noun', usage: 'عند الدفع', example: 'Can I have the bill?', exampleTranslation: 'هل يمكن أن أحصل على الحساب؟', confidence: 'شائع' },
+            { word: 'calculation', arabic: 'عملية حسابية', partOfSpeech: 'noun', usage: 'في الرياضيات أو الأرقام', example: 'The calculation is correct.', exampleTranslation: 'الحساب صحيح.', confidence: 'سياقي' },
+        ],
+    },
+};
+
+const uniqueCandidates = (items: DictionaryCandidate[]) => {
+    const seen = new Set<string>();
+    return items
+        .map((item) => ({ ...item, word: String(item.word || '').trim(), arabic: String(item.arabic || '').trim() }))
+        .filter((item) => {
+            const key = item.word.toLowerCase();
+            if (!item.word || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .slice(0, 8);
+};
+
+const getArabicDictionaryCandidates = async (query: string, targetLanguage: 'en' | 'de', fastMode = false): Promise<DictionaryCandidate[]> => {
+    const normalized = normalizeArabicKey(query);
+    const fullCacheKey = `${targetLanguage}|${normalized}|full`;
+    const fastCacheKey = `${targetLanguage}|${normalized}|fast`;
+    const fullCached = arabicCandidateCache.get(fullCacheKey);
+    if (fullCached) return fullCached;
+    const fastCached = arabicCandidateCache.get(fastCacheKey);
+    if (fastMode && fastCached) return fastCached;
+
+    const localCandidates = localArabicCandidates[targetLanguage]?.[normalized] || [];
+    if (fastMode && localCandidates.length > 0) {
+        const immediate = uniqueCandidates(localCandidates);
+        arabicCandidateCache.set(fastCacheKey, immediate);
+        return immediate;
+    }
+
+    const [remoteWords, aiCandidates] = await Promise.all([
+        withTimeout(fetchTranslationCandidates(query, 'ar', targetLanguage), fastMode ? 550 : 900, []),
+        fastMode ? Promise.resolve([]) : withTimeout((async () => {
+            try {
+                const { aiService } = await import('../services/aiService');
+                const generated = await aiService.getDictionaryCandidates(query, targetLanguage, 'B1');
+                return Array.isArray(generated) ? generated : [];
+            } catch (e) {
+                console.error('AI dictionary candidates failed', e);
+                return [];
+            }
+        })(), localCandidates.length > 0 ? 900 : 1300, []),
+    ]);
+
+    const remoteCandidates: DictionaryCandidate[] = remoteWords.map((word, index) => ({
+        word,
+        arabic: query,
+        partOfSpeech: 'word',
+        usage: index === 0 ? 'ترجمة مباشرة من القاموس العام' : 'اقتراح بديل من ترجمات عامة',
+        confidence: index === 0 ? 'مباشر' : 'بديل',
+        source: 'mymemory',
+    }));
+
+    const candidates = uniqueCandidates([...localCandidates, ...aiCandidates, ...remoteCandidates]);
+    arabicCandidateCache.set(fastMode ? fastCacheKey : fullCacheKey, candidates);
+    return candidates;
+};
+
+const candidateToEntry = (candidate: DictionaryCandidate): DictionaryEntry => ({
+    word: candidate.word,
+    phonetic: '',
+    phonetics: [],
+    meanings: [{
+        partOfSpeech: candidate.partOfSpeech || 'word',
+        definitions: [{
+            definition: candidate.arabic,
+            example: candidate.example,
+            synonyms: candidate.alternatives || [],
+            antonyms: [],
+        }],
+        synonyms: candidate.alternatives || [],
+        antonyms: [],
+    }],
+    sourceUrls: [],
+    ...(candidate as any),
+} as DictionaryEntry);
 
 interface EntryCardProps {
     entry: DictionaryEntry;
@@ -104,6 +314,8 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
     const [loadingDeepDive, setLoadingDeepDive] = useState(false);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const richEntry = entry as DictionaryEntry & DictionaryCandidate;
+    const displayWord = richEntry.article ? `${richEntry.article} ${entry.word}` : entry.word;
 
     const entryExamples = useMemo(() => {
         const candidates = entry.meanings.flatMap(m => m.definitions.map(d => d.example))
@@ -111,6 +323,16 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
         const unique = Array.from(new Set(candidates));
         return unique.sort((a: string, b: string) => a.length - b.length).slice(0, 6);
     }, [entry]);
+
+    const meaningGroups = useMemo(() => (
+        entry.meanings
+            .filter((meaning) => meaning.definitions.length > 0)
+            .slice(0, 4)
+            .map((meaning) => ({
+                ...meaning,
+                definitions: meaning.definitions.slice(0, 3),
+            }))
+    ), [entry]);
 
     useEffect(() => {
         if (entryExamples.length > 0) {
@@ -133,16 +355,16 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
             audioRef.current.src = audioUrl;
             audioRef.current.play();
         } else {
-            speakText(entry.word, targetLanguage);
+            speakText(displayWord, targetLanguage);
         }
     };
 
     const handleSaveRequest = () => {
         const isArSearch = detectLang(query) === 'ar';
         const arabicText = isArSearch ? query : (searchTranslation || '...');
-        const wordText = entry.word;
+        const wordText = displayWord;
         const front = `${wordText}`;
-        const back = `${arabicText}\n(${entry.meanings[0]?.partOfSpeech || 'word'})`;
+        const back = `${arabicText}\n${richEntry.usage ? `${richEntry.usage}\n` : ''}(${entry.meanings[0]?.partOfSpeech || 'word'})`;
         onOpenSave({ front, back });
     };
 
@@ -175,7 +397,7 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 relative z-10">
                     <div className="flex-1">
                         <div className="flex items-center gap-3 md:gap-4 mb-3 flex-wrap">
-                            <h2 className="text-4xl md:text-7xl font-black text-gray-900 dark:text-white tracking-tighter drop-shadow-sm">{entry.word}</h2>
+                            <h2 className="text-4xl md:text-6xl font-extrabold text-gray-900 dark:text-white tracking-normal leading-tight drop-shadow-sm" dir="ltr">{displayWord}</h2>
                             <AnimatePresence>
                                 {entry.meanings[0] && (
                                     <motion.span
@@ -200,8 +422,25 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
                             </motion.div>
                         )}
 
+                        {(richEntry.usage || richEntry.confidence || richEntry.exampleTranslation) && (
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {richEntry.confidence && (
+                                    <span className="px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800 text-xs font-black">
+                                        {richEntry.confidence}
+                                    </span>
+                                )}
+                                {richEntry.usage && (
+                                    <span className="px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 text-xs font-black">
+                                        {richEntry.usage}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-6 text-2xl text-gray-400 font-serif italic tracking-wide">
-                            <span className="bg-stone-50 dark:bg-gray-900/50 px-4 py-1 rounded-lg border border-stone-100 dark:border-gray-800">{entry.phonetic}</span>
+                            {(entry.phonetic || richEntry.plural) && (
+                                <span className="bg-stone-50 dark:bg-gray-900/50 px-4 py-1 rounded-lg border border-stone-100 dark:border-gray-800">{entry.phonetic || richEntry.plural}</span>
+                            )}
                         </div>
                     </div>
 
@@ -241,6 +480,77 @@ const EntryCard: React.FC<EntryCardProps> = ({ entry, searchTranslation, query, 
                     </div>
                 </div>
             </div>
+
+            {meaningGroups.length > 0 && (
+                <div className="p-5 md:p-7 bg-slate-50 dark:bg-gray-950/40 border-b border-stone-100 dark:border-gray-800">
+                    <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                        <h3 className="text-lg md:text-xl font-black text-slate-950 dark:text-white flex items-center gap-3">
+                            <span className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Book size={20} />
+                            </span>
+                            {t.dictionary.meaning || 'المعنى والاستخدام'}
+                        </h3>
+                        {richEntry.source && (
+                            <span className="px-4 py-2 rounded-full bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-200 border border-slate-200 dark:border-gray-700 text-xs font-black uppercase tracking-widest">
+                                {richEntry.source === 'ai' ? 'AI Dictionary' : richEntry.source}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="space-y-4">
+                        {meaningGroups.map((meaning, meaningIndex) => (
+                            <div
+                                key={`${meaning.partOfSpeech}-${meaningIndex}`}
+                                className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 md:p-5 shadow-sm"
+                            >
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <span className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-gray-800 text-slate-800 dark:text-gray-100 border border-slate-200 dark:border-gray-700 text-xs font-black uppercase tracking-widest">
+                                        {meaning.partOfSpeech}
+                                    </span>
+                                    {richEntry.plural && (
+                                        <span className="text-xs md:text-sm font-black text-slate-700 dark:text-gray-200" dir="ltr">
+                                            Pl. {richEntry.plural}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3">
+                                    {meaning.definitions.map((definition, definitionIndex) => (
+                                        <div key={definitionIndex} className="rounded-2xl bg-slate-50 dark:bg-black/25 border border-slate-200 dark:border-gray-800 p-4">
+                                            <p className="text-base md:text-lg font-extrabold text-slate-950 dark:text-white leading-relaxed" dir="auto">
+                                                {definition.definition}
+                                            </p>
+
+                                            {definition.example && (
+                                                <div className="mt-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 p-3">
+                                                    <p className="text-sm md:text-base font-bold text-slate-950 dark:text-amber-50 leading-relaxed" dir="ltr">
+                                                        {definition.example}
+                                                    </p>
+                                                    {richEntry.exampleTranslation && (
+                                                        <p className="mt-2 text-sm font-bold text-primary dark:text-red-200 leading-relaxed" dir="rtl">
+                                                            {richEntry.exampleTranslation}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {definition.synonyms.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 mt-3">
+                                                    {definition.synonyms.slice(0, 6).map((synonym) => (
+                                                        <span key={synonym} className="px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-black border border-blue-100 dark:border-blue-800" dir="ltr">
+                                                            {synonym}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* AI Deep Dive Content Section */}
             <AnimatePresence>
@@ -362,11 +672,17 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<DictionaryEntry[] | null>(null);
     const [translation, setTranslation] = useState<string | null>(null);
+    const [dictionaryCandidates, setDictionaryCandidates] = useState<DictionaryCandidate[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [searchHistory, setSearchHistory] = useState<string[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [toastMessage, setToastMessage] = useState<{ text: string, type: 'error' | 'success' | 'info' } | null>(null);
+    const d = t.dictionary || {};
+    const targetLabel = targetLanguageLabel(targetLanguage, t);
+    const arabicLabel = d.arabic || 'العربية';
+    const formatDictText = (template: string, vars: Record<string, string | number>) =>
+        Object.entries(vars).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), template);
 
     const showToast = (text: string, type: 'error' | 'success' | 'info' = 'info') => {
         setToastMessage({ text, type });
@@ -377,6 +693,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
     useEffect(() => {
         setSearchHistory(db.load('dict_history', [], targetLanguage));
         setResults(null);
+        setDictionaryCandidates([]);
         setQuery('');
     }, [targetLanguage]);
 
@@ -388,28 +705,47 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
 
     // --- NEW: Smart Analysis State ---
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<{
-        isCorrect: boolean;
-        correctedText: string;
-        explanation: string;
-        improvements: string[];
-        cefrLevel: string;
-        mistakes: { original: string; correction: string; reason: string }[];
-    } | null>(null);
+    const [analysisResult, setAnalysisResult] = useState<SmartAnalysisResult | null>(null);
 
     const handleSmartAnalysis = async () => {
-        if (!translatorText.trim()) return;
+        const text = translatorText.trim();
+        if (!text) return;
         setIsAnalyzing(true);
         setAnalysisResult(null); // Reset previous result
 
         try {
-            // Dynamic import
+            const detectedLanguage = detectLang(text);
+            const isArabicSource = detectedLanguage === 'ar';
+            const fallbackTranslation = isArabicSource
+                ? await fetchTranslation(text, 'ar', targetLanguage)
+                : null;
+
             const { aiService } = await import('../services/aiService');
-            // Assume user level B1 for now, or get from props/store if available
-            const result = await aiService.analyzeText(translatorText, targetLanguage as 'en' | 'de', 'B1');
-            setAnalysisResult(result);
-            // Also set the translator result to the corrected text for convenience
-            setTranslatorResult(result.correctedText);
+            const result = await aiService.analyzeText(
+                text,
+                targetLanguage as 'en' | 'de',
+                'B1',
+                isArabicSource ? 'ar' : 'target'
+            );
+
+            const normalizedResult: SmartAnalysisResult = {
+                ...result,
+                correctedText: isArabicSource && fallbackTranslation && result.correctedText.trim() === text
+                    ? fallbackTranslation
+                    : result.correctedText,
+                mode: isArabicSource ? 'translation' : 'correction',
+                sourceLanguage: isArabicSource ? 'ar' : 'target',
+            };
+
+            if (isArabicSource && normalizedResult.improvements.length === 0) {
+                normalizedResult.improvements = [
+                    formatDictText(d.targetTranslationTitle || 'ترجمة ذكية إلى {language}', { language: targetLabel }),
+                    d.addMoreContext || 'لو المعنى المقصود مختلف، أضف سياقاً أكثر للجملة قبل التحليل.',
+                ];
+            }
+
+            setAnalysisResult(normalizedResult);
+            setTranslatorResult(normalizedResult.correctedText);
         } catch (e) {
             console.error(e);
             showToast("حدث خطأ أثناء التحليل الذكي", "error");
@@ -506,6 +842,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
 
         setLoading(true);
         setError('');
+        setDictionaryCandidates([]);
 
         if (saveHistory) {
             setResults(null);
@@ -524,7 +861,15 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
             let trans = null;
 
             if (detected === 'ar') {
-                // Input AR -> Target (EN or DE)
+                // Input AR -> Target (EN or DE): show contextual alternatives first.
+                const candidates = await getArabicDictionaryCandidates(searchTerm, targetLanguage, !saveHistory);
+                if (candidates.length > 0) {
+                    setDictionaryCandidates(candidates);
+                    setTranslation(candidates[0].arabic || searchTerm);
+                    setResults([candidateToEntry(candidates[0])]);
+                    return;
+                }
+
                 const translatedTarget = await fetchTranslation(searchTerm, 'ar', targetLanguage);
                 if (!translatedTarget) throw new Error('Translation failed');
                 searchWord = translatedTarget;
@@ -537,9 +882,20 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
 
             // --- LOGIC FOR GERMAN vs ENGLISH ---
             if (targetLanguage === 'de') {
-                // Free Dictionary API only supports English. 
-                // For German, we generate a synthetic entry from the translation results
-                // to maintain the card UI structure without 404s.
+                try {
+                    const deResponse = await fetch(`https://freedictionaryapi.com/api/v1/entries/de/${encodeURIComponent(searchWord)}`);
+                    if (deResponse.ok) {
+                        const deData = await deResponse.json();
+                        if (Array.isArray(deData) && deData.length > 0) {
+                            setResults(deData);
+                            return;
+                        }
+                    }
+                } catch (deErr) {
+                    console.error("German Dictionary API error, falling back to translation:", deErr);
+                }
+
+                // Fallback for German: Use synthetic entry from translation
                 setResults([{
                     word: searchWord,
                     phonetics: [],
@@ -590,6 +946,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
         if (!query.trim()) {
             setResults(null);
             setTranslation(null);
+            setDictionaryCandidates([]);
             setError('');
             return;
         }
@@ -597,7 +954,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
 
         debounceTimeoutRef.current = setTimeout(() => {
             handleSearch(undefined, query, false);
-        }, 800);
+        }, 450);
         return () => { if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current); };
     }, [query]);
 
@@ -660,6 +1017,21 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
         }
     };
 
+    const dictionaryPlaceholder = useMemo(() => {
+        if (targetLanguage === 'de') {
+            return d.germanPlaceholder || 'اكتب كلمة بالألمانية...';
+        }
+        return d.placeholder;
+    }, [targetLanguage, d]);
+
+    const selectedCandidateWord = results?.[0]?.word?.toLowerCase() || '';
+    const selectDictionaryCandidate = (candidate: DictionaryCandidate) => {
+        setResults([candidateToEntry(candidate)]);
+        setTranslation(candidate.arabic || query);
+        setError('');
+        setLoading(false);
+    };
+
     return (
         <div className="p-4 md:p-8 animate-slide-up pb-20 max-w-5xl mx-auto min-h-screen relative" onClick={() => setShowHistory(false)}>
 
@@ -714,12 +1086,14 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder={`${t.dictionary.placeholder}`}
-                                    className="flex-1 bg-transparent py-3 md:py-5 px-3 md:px-4 text-lg md:text-2xl font-black text-gray-800 dark:text-white outline-none placeholder-gray-400 dark:placeholder-gray-500"
+                                    placeholder={dictionaryPlaceholder}
+                                    className="flex-1 bg-transparent py-3 md:py-5 px-3 md:px-4 text-lg md:text-2xl font-extrabold tracking-normal leading-relaxed text-gray-800 dark:text-white outline-none placeholder-gray-400 dark:placeholder-gray-500"
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                     onFocus={() => setShowHistory(true)}
                                     onClick={(e) => e.stopPropagation()}
+                                    dir="auto"
+                                    spellCheck={false}
                                 />
 
                                 {/* Voice Search Button */}
@@ -728,7 +1102,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
                                     className="p-2 md:p-4 rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 hover:text-primary hover:bg-primary/10 transition-colors mx-1 md:mx-2"
-                                    onClick={() => showToast("جاري تفعيل البحث الصوتي... (قريباً)", "info")}
+                                    onClick={() => showToast(d.voiceSearchSoon || "جاري تفعيل البحث الصوتي... (قريباً)", "info")}
                                 >
                                     <Mic size={20} className="md:w-6 md:h-6" />
                                 </motion.button>
@@ -798,7 +1172,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                                 {targetLanguage === 'de' ? 'Herausforderung' : 'Serendipity'}
                                             </h3>
                                             <p className="text-gray-500 dark:text-gray-400 font-medium text-base md:text-lg">
-                                                {targetLanguage === 'de' ? 'تحدي / Challenge' : 'الصدفة السعيدة / Happy Accident'}
+                                                {targetLanguage === 'de' ? (d.wordOfTheDayMeaningDe || 'تحدي / Challenge') : (d.wordOfTheDayMeaningEn || 'الصدفة السعيدة / Happy Accident')}
                                             </p>
                                         </div>
                                         <button
@@ -815,10 +1189,10 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                             {/* Quick Categories */}
                             <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {[
-                                    { icon: Briefcase, label: "أعمال", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20" },
-                                    { icon: Plane, label: "سفر", color: "text-green-500", bg: "bg-green-50 dark:bg-green-900/20" },
-                                    { icon: Coffee, label: "يومي", color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20" },
-                                    { icon: Heart, label: "صحة", color: "text-red-500", bg: "bg-red-50 dark:bg-red-900/20" },
+                                    { icon: Briefcase, label: d.categories?.business || "أعمال", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20" },
+                                    { icon: Plane, label: d.categories?.travel || "سفر", color: "text-green-500", bg: "bg-green-50 dark:bg-green-900/20" },
+                                    { icon: Coffee, label: d.categories?.daily || "يومي", color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-900/20" },
+                                    { icon: Heart, label: d.categories?.health || "صحة", color: "text-red-500", bg: "bg-red-50 dark:bg-red-900/20" },
                                 ].map((cat, i) => (
                                     <button key={i} className={`p-3 md:p-4 rounded-2xl md:rounded-3xl ${cat.bg} hover:scale-105 transition-transform flex flex-col items-center gap-2 md:gap-3 group`}>
                                         <cat.icon size={24} className={`${cat.color} md:w-7 md:h-7`} />
@@ -847,16 +1221,77 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                     <AlertCircle size={48} className="text-red-500" />
                                 </div>
                             </div>
-                            <h3 className="text-3xl font-black text-gray-800 dark:text-white mb-4">كلمة غير موجودة</h3>
+                            <h3 className="text-3xl font-black text-gray-800 dark:text-white mb-4">{d.wordNotFoundTitle || 'كلمة غير موجودة'}</h3>
                             <p className="text-gray-500 dark:text-gray-400 text-lg leading-relaxed mb-8">
-                                لم نتمكن من العثور على هذه الكلمة. جرب استخدام المترجم للنصوص الطويلة.
+                                {d.wordNotFoundDesc || 'لم نتمكن من العثور على هذه الكلمة. جرب استخدام المترجم للنصوص الطويلة.'}
                             </p>
                             <button
                                 onClick={() => setActiveTab('translator')}
                                 className="px-10 py-4 bg-white dark:bg-white/5 border border-gray-200 dark:border-gray-700 hover:border-primary text-gray-700 dark:text-white rounded-[2rem] font-black text-lg transition-all flex items-center gap-3"
                             >
-                                <Languages size={20} /> الذهاب للمترجم
+                                <Languages size={20} /> {d.goTranslator || 'الذهاب للمترجم'}
                             </button>
+                        </motion.div>
+                    )}
+
+                    {dictionaryCandidates.length > 1 && !loading && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 18 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="max-w-4xl mx-auto mt-8 rounded-[1.75rem] border border-white/50 dark:border-white/10 bg-white/45 dark:bg-white/[0.04] backdrop-blur-2xl p-4 md:p-5 shadow-warm-lg"
+                        >
+                            <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+                                <div>
+                                    <h3 className="text-base md:text-lg font-black text-slate-950 dark:text-white">
+                                        {d.contextualMeanings || 'اختيارات المعنى حسب السياق'}
+                                    </h3>
+                                    <p className="text-xs md:text-sm font-bold text-slate-600 dark:text-gray-300 mt-1">
+                                        {targetLanguage === 'de'
+                                            ? (d.contextualMeaningsDe || 'الألماني يحتاج اختيار الكلمة المناسبة للسياق، خصوصاً مع أدوات التعريف والجمع.')
+                                            : (d.contextualMeaningsEn || 'اختر المعنى الأقرب لاستخدامك عشان تظهر تفاصيل أدق.')}
+                                    </p>
+                                </div>
+                                <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-black border border-primary/10">
+                                    {dictionaryCandidates.length} {d.options || 'اختيارات'}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2.5">
+                                {dictionaryCandidates.map((candidate) => {
+                                    const isSelected = selectedCandidateWord === candidate.word.toLowerCase();
+                                    return (
+                                        <button
+                                            key={`${candidate.word}-${candidate.usage || candidate.arabic}`}
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                selectDictionaryCandidate(candidate);
+                                            }}
+                                            className={`text-start rounded-2xl border px-4 py-3 transition-all min-w-[180px] max-w-full backdrop-blur-xl ${isSelected
+                                                ? 'bg-primary/90 text-white border-primary/80 shadow-lg shadow-primary/20'
+                                                : 'bg-white/35 dark:bg-white/[0.06] text-slate-900 dark:text-white border-white/60 dark:border-white/10 hover:border-primary/40 hover:bg-primary/10 dark:hover:bg-primary/15'
+                                                }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className={`text-lg font-extrabold tracking-normal leading-tight ${isSelected ? 'text-white' : 'text-slate-950 dark:text-white'}`} dir="ltr">
+                                                    {candidate.article ? `${candidate.article} ${candidate.word}` : candidate.word}
+                                                </span>
+                                                {candidate.confidence && (
+                                                    <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border ${isSelected
+                                                        ? 'bg-white/15 text-white border-white/20'
+                                                        : 'bg-white/55 dark:bg-white/10 text-primary border-white/70 dark:border-white/10'
+                                                        }`}>
+                                                        {candidate.confidence}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className={`mt-1 text-xs md:text-sm font-bold leading-relaxed ${isSelected ? 'text-white/90' : 'text-slate-600 dark:text-gray-300'}`} dir="rtl">
+                                                {candidate.usage || candidate.arabic}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </motion.div>
                     )}
 
@@ -870,7 +1305,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                             >
                                 {results.map((entry, index) => (
                                     <EntryCard
-                                        key={index}
+                                        key={`${entry.word}-${index}`}
                                         entry={entry}
                                         searchTranslation={translation}
                                         query={query}
@@ -898,8 +1333,8 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                     <div className="bg-white dark:bg-dark-card rounded-[4rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.25)] dark:shadow-none dark:border dark:border-gray-800 overflow-hidden">
                         <div className="bg-stone-50 dark:bg-gray-800/80 p-6 border-b border-stone-200 dark:border-gray-800 flex justify-between items-center px-12">
                             <div className="flex flex-col items-center gap-1">
-                                <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">من</span>
-                                <div className="text-xl font-black text-gray-900 dark:text-white">{transLang === 'target-ar' ? (targetLanguage === 'de' ? 'الألمانية' : 'الإنجليزية') : 'العربية'}</div>
+                                <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">{d.from || 'من'}</span>
+                                <div className="text-xl font-black text-gray-900 dark:text-white">{transLang === 'target-ar' ? targetLabel : arabicLabel}</div>
                             </div>
                             <motion.button
                                 whileHover={{ rotate: 180 }}
@@ -910,15 +1345,15 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                 <RotateCw size={24} />
                             </motion.button>
                             <div className="flex flex-col items-center gap-1">
-                                <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">إلى</span>
-                                <div className="text-xl font-black text-primary dark:text-red-400">{transLang === 'target-ar' ? 'العربية' : (targetLanguage === 'de' ? 'الألمانية' : 'الإنجليزية')}</div>
+                                <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">{d.to || 'إلى'}</span>
+                                <div className="text-xl font-black text-primary dark:text-red-400">{transLang === 'target-ar' ? arabicLabel : targetLabel}</div>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x md:divide-x-reverse divide-stone-100 dark:divide-gray-800 h-full">
                             <div className="p-5 md:p-10 flex flex-col min-h-[300px] md:min-h-[350px]">
                                 <textarea
-                                    placeholder="اكتب النص هنا للترجمة أو التصحيح..."
+                                    placeholder={d.translatorPlaceholder || 'اكتب النص هنا للترجمة أو التصحيح...'}
                                     className="w-full h-full bg-transparent resize-none outline-none text-xl md:text-3xl font-black text-gray-900 dark:text-white placeholder-gray-200 dark:placeholder-gray-700 leading-normal"
                                     value={translatorText}
                                     onChange={e => {
@@ -929,7 +1364,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                     dir="auto"
                                 ></textarea>
                                 <div className="flex justify-between items-center mt-4 md:mt-6 pt-4 md:pt-6 border-t border-stone-50 dark:border-gray-900">
-                                    <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{translatorText.length} حرف</span>
+                                    <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{translatorText.length} {d.chars || 'حرف'}</span>
                                     {translatorText && (
                                         <button onClick={() => { setTranslatorText(''); setAnalysisResult(null); }} className="bg-stone-100 dark:bg-gray-800 p-2 rounded-xl text-gray-400 hover:text-red-500 transition-colors">
                                             <Trash2 size={20} />
@@ -943,12 +1378,12 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 dark:bg-black/20 backdrop-blur-sm gap-4">
                                         <Loader className="animate-spin text-primary" size={50} />
                                         <span className="text-gray-500 font-bold animate-pulse">
-                                            {isAnalyzing ? "جاري تحليل النص وكشف الأخطاء..." : "جاري الترجمة..."}
+                                            {isAnalyzing ? (d.analyzingText || "جاري تحليل النص وكشف الأخطاء...") : (d.translating || "جاري الترجمة...")}
                                         </span>
                                     </div>
                                 ) : (
                                     <div className="w-full h-full text-xl md:text-3xl font-black text-primary dark:text-red-400 overflow-y-auto leading-normal whitespace-pre-wrap" dir="auto">
-                                        {translatorResult || <span className="text-gray-200 dark:text-gray-800 italic font-black">النتيجة ستظهر هنا...</span>}
+                                        {translatorResult || <span className="text-gray-200 dark:text-gray-800 italic font-black">{d.resultPlaceholder || 'النتيجة ستظهر هنا...'}</span>}
                                     </div>
                                 )}
 
@@ -959,9 +1394,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                             animate={{ opacity: 1, y: 0 }}
                                             className="flex gap-3 md:gap-4 justify-end mt-4 md:mt-6 pt-4 md:pt-6 border-t border-stone-100 dark:border-gray-800"
                                         >
-                                            <button onClick={handleSaveTranslatorCard} className="flex-1 lg:flex-none py-3 px-4 md:py-4 md:px-6 rounded-xl md:rounded-2xl bg-green-500/10 text-green-600 font-black text-sm md:text-base flex items-center justify-center gap-2 hover:bg-green-500 hover:text-white transition-all"><Plus size={18} className="md:w-5 md:h-5" /> حفظ</button>
+                                            <button onClick={handleSaveTranslatorCard} className="flex-1 lg:flex-none py-3 px-4 md:py-4 md:px-6 rounded-xl md:rounded-2xl bg-green-500/10 text-green-600 font-black text-sm md:text-base flex items-center justify-center gap-2 hover:bg-green-500 hover:text-white transition-all"><Plus size={18} className="md:w-5 md:h-5" /> {d.saveAction || 'حفظ'}</button>
                                             <button onClick={() => navigator.clipboard.writeText(translatorResult)} className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-blue-500/10 text-blue-600 hover:bg-blue-500 hover:text-white transition-all"><Copy size={18} className="md:w-5 md:h-5" /></button>
-                                            <button onClick={() => speakText(translatorResult)} className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all"><Volume2 size={18} className="md:w-5 md:h-5" /></button>
+                                            <button onClick={() => speakText(translatorResult, detectLang(translatorResult) === 'ar' ? 'ar' : targetLanguage)} className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all"><Volume2 size={18} className="md:w-5 md:h-5" /></button>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -985,20 +1420,24 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                             </div>
                                             <div>
                                                 <h3 className="text-2xl font-black text-gray-900 dark:text-white">
-                                                    {analysisResult.isCorrect ? "أحسنت! كتابة ممتازة 🎉" : "تم اكتشاف بعض الاقتراحات 🧐"}
+                                                    {analysisResult.mode === 'translation'
+                                                        ? formatDictText(d.targetTranslationTitle || 'ترجمة ذكية إلى {language}', { language: targetLabel })
+                                                        : analysisResult.isCorrect ? (d.excellentWriting || "أحسنت! كتابة ممتازة") : (d.suggestionsFound || "تم اكتشاف بعض الاقتراحات")}
                                                 </h3>
-                                                <p className="text-gray-500 font-bold">مستوى هذا النص: <span className="text-primary">{analysisResult.cefrLevel}</span></p>
+                                                <p className="text-gray-500 font-bold">
+                                                    {analysisResult.mode === 'translation'
+                                                        ? formatDictText(d.arabicInputNote || 'النص المدخل عربي، لذلك نعرض ترجمة وملاحظات ترجمة بدل تصحيح العربية كلغة {language}.', { language: targetLabel })
+                                                        : <>{d.textLevel || 'مستوى هذا النص:'} <span className="text-primary">{analysisResult.cefrLevel}</span></>}
+                                                </p>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                             {/* Left: Correction */}
                                             <div className="bg-white dark:bg-black/20 border border-stone-200 dark:border-gray-700 rounded-3xl p-8 relative overflow-hidden">
-                                                {!analysisResult.isCorrect && (
-                                                    <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-bl-2xl">
-                                                        التصحيح المقترح
-                                                    </div>
-                                                )}
+                                                <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-bl-2xl">
+                                                    {analysisResult.mode === 'translation' ? (d.suggestedTranslation || 'الترجمة المقترحة') : (d.suggestedCorrection || 'التصحيح المقترح')}
+                                                </div>
                                                 <p className="text-2xl font-bold text-gray-800 dark:text-gray-200 leading-relaxed mb-4" dir="ltr">
                                                     {analysisResult.correctedText}
                                                 </p>
@@ -1008,8 +1447,8 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                                             <div key={i} className="flex items-start gap-3 text-sm p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
                                                                 <X size={16} className="text-red-500 mt-1 shrink-0" />
                                                                 <div>
-                                                                    <div className="font-bold text-red-600 dark:text-red-400 line-through decoration-2 opacity-70" dir="ltr">{mistake.original}</div>
-                                                                    <div className="font-bold text-green-600 dark:text-green-400 mt-1" dir="ltr">{mistake.correction}</div>
+                                                                    <div className="font-bold text-red-600 dark:text-red-400 line-through decoration-2 opacity-70" dir="auto">{mistake.original}</div>
+                                                                    <div className="font-bold text-green-600 dark:text-green-400 mt-1" dir="auto">{mistake.correction}</div>
                                                                     <div className="text-gray-500 mt-1 text-xs">{mistake.reason}</div>
                                                                 </div>
                                                             </div>
@@ -1022,7 +1461,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                             <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-3xl p-8">
                                                 <h4 className="flex items-center gap-2 font-black text-indigo-900 dark:text-indigo-300 mb-4">
                                                     <MessageCircle size={20} />
-                                                    تحليل المعلم الذكي
+                                                    {d.smartTeacherAnalysis || 'تحليل المعلم الذكي'}
                                                 </h4>
                                                 <p className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed mb-6 font-medium">
                                                     {analysisResult.explanation}
@@ -1030,7 +1469,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
 
                                                 {analysisResult.improvements.length > 0 && (
                                                     <div>
-                                                        <h5 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-3">نصائح احترافية</h5>
+                                                        <h5 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-3">
+                                                            {analysisResult.mode === 'translation' ? (d.translationNotes || 'ملاحظات على الترجمة') : (d.proTips || 'نصائح احترافية')}
+                                                        </h5>
                                                         <ul className="space-y-2">
                                                             {analysisResult.improvements.map((tip, i) => (
                                                                 <li key={i} className="flex items-start gap-2 text-gray-600 dark:text-gray-400 text-sm font-bold">
@@ -1055,7 +1496,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                 disabled={translatorLoading || isAnalyzing || !translatorText}
                                 className="flex-1 px-8 py-6 bg-white dark:bg-gray-800 border-2 border-stone-200 dark:border-gray-700 text-gray-700 dark:text-white rounded-[2rem] font-black text-xl shadow-lg hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-4 disabled:opacity-50"
                             >
-                                <Languages size={24} /> ترجمة فقط
+                                <Languages size={24} /> {d.translationOnly || 'ترجمة فقط'}
                             </motion.button>
 
                             <motion.button
@@ -1066,13 +1507,13 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                 className="flex-[1.5] px-8 py-6 bg-gradient-to-r from-primary to-orange-500 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-primary/30 disabled:opacity-50 disabled:grayscale transition-all flex items-center justify-center gap-4 relative overflow-hidden group"
                             >
                                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 skew-y-12"></div>
-                                <Sparkles size={24} className="animate-pulse" /> تحليل وتصحيح ذكي AI
+                                <Sparkles size={24} className="animate-pulse" /> {d.smartCorrection || 'تحليل وتصحيح ذكي AI'}
                             </motion.button>
                         </div>
                     </div>
 
                     <div className="mt-12 text-center text-gray-400 font-bold flex items-center justify-center gap-2 opacity-50">
-                        <Sparkles size={16} /> مدعوم بتقنيات Gemini Pro للتعليم
+                        <Sparkles size={16} /> {d.poweredBy || 'مدعوم بتقنيات Gemini Pro للتعليم'}
                     </div>
                 </motion.div>
             )}
@@ -1167,7 +1608,8 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({ t, onAddCard, fo
                                         exit={{ opacity: 0, scale: 0.9 }}
                                         className="relative w-full h-48 rounded-2xl overflow-hidden border-2 border-primary/20 shadow-lg group mt-4"
                                     >
-                                        <img src={wordToSave.image} className="w-full h-full object-cover" alt="preview" />
+                                        <img src={wordToSave.image} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30" alt="" aria-hidden="true" />
+                                        <img src={wordToSave.image} className="relative z-[1] w-full h-full object-contain p-3" alt="preview" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-end pb-4">
                                             <button onClick={(e) => { e.preventDefault(); setWordToSave({ ...wordToSave, image: '' }); }} className="text-white text-sm font-bold bg-red-500/80 hover:bg-red-500 px-6 py-2 rounded-full backdrop-blur-sm flex items-center gap-2 transition-all hover:scale-105">
                                                 <Trash2 size={16} /> إزالة الصورة

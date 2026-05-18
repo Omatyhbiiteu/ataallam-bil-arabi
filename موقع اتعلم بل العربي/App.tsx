@@ -1,117 +1,50 @@
-import React, { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { LoadingScreen } from './components/LoadingScreen';
-import { AlertTriangle, Book, Bookmark, Brain, ChevronDown, ChevronRight, Clock, Coffee, Copy, CreditCard, Crosshair, Crown, Feather, FileText, Filter, Flame, Gift, GraduationCap, Headphones, Heart, History, Home, Image, LayoutDashboard, LayoutGrid, LayoutTemplate, LifeBuoy, Lightbulb, Lock, LogOut, Maximize2, Menu, MessageSquare, Minimize2, MonitorSmartphone, Moon, MoreHorizontal, MoreVertical, MousePointerClick, Music, Palette, Pause, PenTool, Play, Plus, RefreshCw, Repeat, RotateCcw, Save, Search, Settings, Share2, Shield, ShieldCheck, Shuffle, SkipBack, SkipForward, Star, StopCircle, Sun, Target, Thermometer, ThumbsDown, ThumbsUp, Timer, Trash, Trash2, TrendingUp, Trophy, Type, Unlock, Upload, Users, Video, Volume2, VolumeX, X, Zap } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Logo } from './components/Logo';
 import { Toast } from './components/Toast';
-import { LoginView } from './components/LoginView';
-import { LandingPage } from './components/LandingPage';
-import { SignupView } from './components/SignupView';
-import { ForgotPasswordView } from './components/ForgotPasswordView';
 import { authService } from './services/authService';
 import { AuthAPI, MarketingAPI, StoriesAPI, CurriculumAPI, SentencesAPI, UserContentAPI, SettingsAPI } from './services/apiClient';
-import { canUserManageFolder } from './utils/folderPermissions';
 import { normalizeCurriculumModules } from './utils/curriculumUtils';
-import { speakText, detectLang, stopSpeaking } from './services/ttsService';
+import { speakText, stopSpeaking } from './services/ttsService';
 import { db } from './services/db';
-import { AddCardResult, Card, Stats, Folder, Story, Language, LanguageAvailability, Module, User, AppTheme, ThemeSchedule, CustomThemeConfig, Coupon, PromoBanner, BroadcastNotification, SupportTicket, MediaItem, SRSGrade, ReviewLog } from './types';
+import { AppNotification, Card, Stats, Language, LanguageAvailability, PromoBanner, User } from './types';
 import { translations } from './utils/translations';
-import { AppNotification } from './types';
-import { AnimatePresence, motion, LazyMotion, domMax } from 'framer-motion';
-// ThemeVisuals, OnboardingWizard, and InteractiveTour are lazy-loaded for performance.
-import {
-  INITIAL_FOLDERS_EN,
-  INITIAL_FOLDERS_DE,
-  INITIAL_CARDS_EN,
-  INITIAL_CARDS_DE,
-  INITIAL_STORIES_EN,
-  INITIAL_STORIES_DE,
-  INITIAL_CURRICULUM_EN,
-  INITIAL_CURRICULUM_DE
-} from './data/initialData';
+import { AnimatePresence, motion, LazyMotion, domMax, MotionConfig } from 'framer-motion';
 import { useAppTheme } from './hooks/useAppTheme';
 import { useAppData } from './hooks/useAppData';
 import { useAppAuth } from './hooks/useAppAuth';
-
-// --- LAZY LOAD COMPONENTS ---
-// const DashboardView = React.lazy(() => import('./components/DashboardView').then(m => ({ default: m.DashboardView })));
-
-const StoriesView = React.lazy(() => import('./components/StoriesView').then(m => ({ default: m.StoriesView })));
-const FoldersView = React.lazy(() => import('./components/FoldersView').then(m => ({ default: m.FoldersView })));
-const GroupsView = React.lazy(() => import('./components/GroupsView').then(m => ({ default: m.GroupsView })));
-const SettingsView = React.lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const ReviewSession = React.lazy(() => import('./components/ReviewSession').then(m => ({ default: m.ReviewSession })));
-
-const LearningPathView = React.lazy(() => import('./components/LearningPathView').then(m => ({ default: m.LearningPathView })));
-const DictionaryView = React.lazy(() => import('./components/DictionaryView').then(m => ({ default: m.DictionaryView })));
-const AIAssistantView = React.lazy(() => import('./components/AIAssistantView').then(m => ({ default: m.AIAssistantView })));
-const HomeView = React.lazy(() => import('./components/HomeView').then(m => ({ default: m.HomeView })));
-const SentencesView = React.lazy(() => import('./components/sentences/SentencesView').then(m => ({ default: m.SentencesView })));
-const CommunityView = React.lazy(() => import('./components/CommunityView').then(m => ({ default: m.CommunityView })));
-const NotificationDrawer = React.lazy(() => import('./components/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
-// const SubscriptionView = React.lazy(() => import('./components/SubscriptionView').then(m => ({ default: m.SubscriptionView })));
-
-
-
-
-const PromoPopupLazy = React.lazy(() => import('./components/PromoPopup').then(m => ({ default: m.PromoPopup })));
-const ThemeVisuals = React.lazy(() => import('./components/ThemeVisuals').then(m => ({ default: m.ThemeVisuals })));
-const OnboardingWizard = React.lazy(() => import('./components/OnboardingWizard').then(m => ({ default: m.OnboardingWizard })));
-const InteractiveTour = React.lazy(() => import('./components/InteractiveTour').then(m => ({ default: m.InteractiveTour })));
-
-const getDayStart = (timestamp: number) => {
-  const date = new Date(timestamp);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-};
-
-/** أيام متتالية بمراجعات فعلية (من سجل المراجعة اليومي) */
-function computeReviewStreak(reviewLog: ReviewLog[]): number {
-  const dayMs = 86400000;
-  const today = getDayStart(Date.now());
-  const byDay = new Map(reviewLog.filter((e) => e.count > 0).map((e) => [e.date, e.count]));
-  const hasToday = (byDay.get(today) || 0) > 0;
-  const hasYesterday = (byDay.get(today - dayMs) || 0) > 0;
-  if (!hasToday && !hasYesterday) return 0;
-  const start = hasToday ? today : today - dayMs;
-  let streak = 0;
-  let d = start;
-  while ((byDay.get(d) || 0) > 0) {
-    streak += 1;
-    d -= dayMs;
-  }
-  return streak;
-}
-
-/** نسبة نجاح حقيقية: من متوسط الاختبارات إن وُجد، وإلا من آخر تقييم SRS للبطاقات */
-function computeSuccessRate(
-  cards: Card[],
-  quizStats?: { totalQuizzes: number; averageScore: number }
-): number {
-  if (quizStats && quizStats.totalQuizzes > 0) {
-    return Math.round(Math.min(100, Math.max(0, quizStats.averageScore)));
-  }
-  const graded = cards.filter((c) => (c.reviews || 0) > 0 && c.lastGrade != null);
-  if (graded.length === 0) return 0;
-  const good = graded.filter(
-    (c) => c.lastGrade === SRSGrade.GOOD || c.lastGrade === SRSGrade.EASY
-  ).length;
-  return Math.round((good / graded.length) * 100);
-}
-
-function formatServerNotificationTime(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const diff = Date.now() - d.getTime();
-  if (diff < 60_000) return 'الآن';
-  if (diff < 3_600_000) return `منذ ${Math.floor(diff / 60_000)} د`;
-  if (diff < 86_400_000) return `منذ ${Math.floor(diff / 3_600_000)} س`;
-  return d.toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-const FREE_MAX_FOLDERS = 3;
-const FREE_MAX_CARDS_PER_FOLDER = 10;
+import { cardUpdatesToApi, useUserContentActions } from './hooks/useUserContentActions';
+import { AppAuthScreens } from './components/app/AppAuthScreens';
+import { ProRequiredPanel } from './components/app/ProRequiredPanel';
+import { UpgradeModal, UpgradeModalState } from './components/app/UpgradeModal';
+import {
+  AIAssistantView,
+  CommunityView,
+  DictionaryView,
+  FoldersView,
+  GamesView,
+  HomeView,
+  InteractiveTour,
+  LearningPathView,
+  NotificationDrawer,
+  OnboardingWizard,
+  PromoPopupLazy,
+  ReviewSession,
+  SentencesView,
+  SettingsView,
+  StoriesView,
+  ThemeVisuals,
+} from './app/lazyComponents';
+import {
+  ActiveReviewSession,
+  computeLevelData,
+  computeReviewStreak,
+  computeSuccessRate,
+  formatServerNotificationTime,
+  getDayStart,
+} from './app/learningStats';
 
 export default function App() {
   // --- GLOBAL STATE ---
@@ -120,80 +53,24 @@ export default function App() {
   const [settingsTargetSection, setSettingsTargetSection] = useState<'account' | 'notifications' | 'appearance' | 'support' | 'subscription'>('appearance');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
-  const [sessionQueue, setSessionQueue] = useState<Card[] | null>(null);
+  const [sessionQueue, setSessionQueue] = useState<ActiveReviewSession | null>(null);
   const [toast, setToast] = useState<{ message: string, visible: boolean, type?: 'success' | 'error' | 'info', variant?: 'default' | 'modal' }>({ message: '', visible: false });
-  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
+  const [upgradeModal, setUpgradeModal] = useState<UpgradeModalState>({ open: false, title: '', message: '' });
   const [showInteractiveTour, setShowInteractiveTour] = useState(false);
+  const reviewSaveVersionsRef = useRef<Record<string, number>>({});
 
   // Wrapper for toast to match hook signature
   const showToast = (message: string, type: 'success' | 'error' | 'info', variant: 'default' | 'modal' = 'default') => {
     setToast({ message, visible: true, type, variant });
   };
 
-  // Notification helper defined early for hook usage (will use temporary function or we refactor addNotification)
-  // Actually addNotification depends on state. We need to define addNotification *inside* App or hook.
-  // BUT useAppAuth needs addNotification.
-  // Let's defer addNotification logic or keep it in App.
-
-  // We can't define addNotification before useAppData because useAppData provides setNotifications.
-  // But useAppAuth needs it.
-  // Solution: pass a wrapper that calls the "real" addNotification later? 
-  // OR: useAppData doesn't provide addNotification, it provides setNotifications.
-  // We can define the addNotification function here using setNotifications from useAppData.
-  // But useAppData is called AFTER we might want to call useAppAuth?
-  // React Hooks order matters.
-  // We can call useAppData first (if it doesn't depend on currentUser... oh it DOES).
-  // useAppData(currentUser).
-  // useAppAuth produces currentUser.
-  // So useAppAuth MUST be first.
-  // But useAppAuth needs addNotification.
-  // addNotification needs setNotifications (from useAppData).
-  // Cycle detected!
-  // Breaking the cycle:
-  // useAppAuth should NOT take addNotification as dependency? 
-  // It handles LoginSuccess (toast only usually) and OnboardingComplete (notification).
-  // Maybe we just return the "triggerOnboardingComplete" from useAppAuth and let App.tsx handle the notification side effect?
-  // Let's adjust useAppAuth usage strategy.
-  // We will pass a "ref" or use effect? No.
-  // We can define `addNotification` inside App.tsx using the setters from useAppData (which depends on currentUser).
-  // But useAppData depends on currentUser.
-  // So: 
-  // 1. Call useAppAuth (provides currentUser).
-  // 2. Call useAppData (uses currentUser).
-  // 3. Define addNotification (uses useAppData.setNotifications).
-  // 4. Pass addNotification to useAppAuth? NO, hooks can't update props later.
-  // Solution: Pass a stable function ref or Use a useEffect to wire them up?
-  // OR: Don't put heavy logic in useAppAuth handlers. Return `shouldShowOnboardingNotification` state?
-  // OR: Simply pass a stub to useAppAuth for now, or move the logic of "Onboarding Notification" out of the hook back to App.tsx?
-  // Let's move `handleOnboardingComplete` logic partially back to App.tsx or keep it simple.
-
-  // Better approach: useAppAuth provides `handleOnboardingComplete(cb)` where cb is the notification action.
-  // Or just keep `handleOnboardingComplete` in App.tsx and only use the hook for STATE setters.
-
-  // Let's modify the plan slightly within this replacement.
-  // I will call useAppAuth with minimal deps.
-  // The handleOnboardingComplete in useAppAuth will accept the notification function as an ARGUMENT when called?
-  // No, the signature in Step 50 fixed it to props.
-  // Since I effectively hardcoded the prop in Step 50... I have to pass it.
-  // But I can't pass a function that doesn't exist yet.
-
-  // WAIT. setNotifications is from useAppData.
-  // useAppData needs ... currentUser.
-  // useAppAuth needs ... addNotification (which needs setNotifications).
-
-  // I'll define a mutable ref for addNotification and pass that?
-  // const addNotificationRef = useRef<...>(null);
-  // useAppAuth({ addNotification: (n) => addNotificationRef.current?.(n) })
-  // ...
-  // addNotificationRef.current = realAddNotification;
-
-  // This is a standard pattern for cyclic deps in hooks.
+  // useAppAuth starts before useAppData, so notification creation is wired through a ref.
   const addNotificationRef = useRef<((n: Omit<AppNotification, 'id' | 'time' | 'read'>) => void) | null>(null);
 
   const {
     currentUser, setCurrentUser,
     authView, setAuthView,
-    showOnboarding, setShowOnboarding,
+    showOnboarding,
     handleLoginSuccess,
     handleOnboardingComplete: hookHandleOnboardingComplete,
     handleLogout: hookHandleLogout,
@@ -215,10 +92,21 @@ export default function App() {
   const [langAvailability, setLangAvailability] = useState<LanguageAvailability>(() => db.load('langAvailability', { en: true, de: true }));
   const [forgotPasswordPrefillEmail, setForgotPasswordPrefillEmail] = useState('');
 
+  const clearStaleUserSession = useCallback(() => {
+    authService.clearLocalSession();
+    setCurrentUser(null);
+    setAuthView('landing');
+    setUserName('User');
+    setUserImage(null);
+  }, [setCurrentUser, setAuthView]);
+
   const syncUserFromServer = useCallback(async () => {
     try {
       const token = localStorage.getItem('hcard_user_token') || localStorage.getItem('auth_token');
-      if (!token) return;
+      if (!token) {
+        clearStaleUserSession();
+        return;
+      }
       const res = (await AuthAPI.me()) as { user?: User };
       if (res?.user) {
         setCurrentUser(res.user);
@@ -226,15 +114,20 @@ export default function App() {
         if (res.user.name) setUserName(res.user.name);
         setUserImage(res.user.avatar ?? null);
         if (res.user.avatar) db.save('userimage', res.user.avatar);
+        return;
       }
-    } catch {
+      clearStaleUserSession();
+    } catch (error: any) {
+      if (error?.status === 401 || error?.status === 403) {
+        clearStaleUserSession();
+      }
       /* تجاهل أخطاء الشبكة */
     }
-  }, [setCurrentUser]);
+  }, [setCurrentUser, clearStaleUserSession]);
 
   // --- CUSTOM HOOKS ---
   const {
-    darkMode, setDarkMode, toggleTheme,
+    darkMode, toggleTheme,
     primaryColor, setPrimaryColor,
     fontSize, setFontSize,
     animationsEnabled, setAnimationsEnabled,
@@ -254,17 +147,15 @@ export default function App() {
     completedStoryIds, setCompletedStoryIds,
     completedLessonIds, setCompletedLessonIds,
     notifications, setNotifications,
-    dailyGoal, setDailyGoal,
     studyPlan, setStudyPlan,
     coupons, setCoupons,
     banners, setBanners,
     broadcasts, setBroadcasts,
-    tickets, setTickets,
-    mediaItems, setMediaItems,
     sentenceTopics, setSentenceTopics,
     inspirationalSlides, setInspirationalSlides,
     refreshFoldersAndCardsFromApi,
     dailyMissionState,
+    gameXp, setGameXp,
     registerDailyStoryCompleted,
     registerDailyMastered,
   } = useAppData(currentUser, setToast);
@@ -531,6 +422,34 @@ export default function App() {
     })();
 
     return () => { cancelled = true; };
+  }, [currentUser?.id, learningLang, setStories]);
+
+  // 🔄 Live sync: poll stories every 45s + refresh when tab regains focus
+  // (localStorage storage events don't cross origins, so we use polling instead)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchLatestStories = async () => {
+      const lang = (learningLang === 'de' ? 'de' : 'en') as 'en' | 'de';
+      try {
+        const res = await StoriesAPI.getAll(lang);
+        if (Array.isArray((res as any)?.stories)) setStories((res as any).stories);
+      } catch { /* silent — keep current stories on error */ }
+    };
+
+    // Poll every 45 seconds
+    const interval = setInterval(fetchLatestStories, 45_000);
+
+    // Also re-fetch immediately when the user switches back to this tab
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchLatestStories();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser?.id, learningLang, setStories]);
 
   // Load curriculum from backend for the selected learning language (مصدر الحقيقة لمسار التعلم)
@@ -804,27 +723,25 @@ export default function App() {
     }
   }, [activeBanner, nowTs]);
 
-  const addNotification = (notif: Omit<AppNotification, 'id' | 'time' | 'read'>) => {
+  const addNotification = useCallback((notif: Omit<AppNotification, 'id' | 'time' | 'read'>) => {
     const newNotif: AppNotification = {
       ...notif,
       id: crypto.randomUUID(),
       time: 'الآن',
       read: false
     };
-    const updated = [newNotif, ...notifications].slice(0, 50); // Keep last 50
-    setNotifications(updated);
-    // Also trigger toast for instant feedback
+    setNotifications((prev) => [newNotif, ...prev].slice(0, 50));
     setToast({ message: `${notif.title}: ${notif.message} `, visible: true, type: 'success' });
-  };
+  }, [setNotifications]);
 
   // Update the ref so useAppAuth can use it
   useEffect(() => {
     addNotificationRef.current = addNotification;
-  }, [notifications, setNotifications]); // Dependencies for the closure
+  }, [addNotification]);
 
   // Helpers to bridge the hook and the UI
   const handleLogout = hookHandleLogout;
-  const handleOnboardingComplete = (data: any) => {
+  const handleOnboardingComplete = () => {
     hookHandleOnboardingComplete(userName);
     // Show Interactive Tour after onboarding
     setShowInteractiveTour(true);
@@ -861,6 +778,7 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) return;
+    void syncUserFromServer();
     void syncServerNotifications();
     const interval = setInterval(() => void syncServerNotifications(), 90_000);
     const handler = () => {
@@ -916,408 +834,34 @@ export default function App() {
     }
   }, [activeTab]);
 
-  // --- CONTENT LOADING LOGIC - Handled in useAppData ---
-
-  // --- HANDLERS ---
-  // toggleTheme is now from hook
-
-
-
-
-
-  const cardUpdatesToApi = (updates: Partial<Card>): Record<string, unknown> => {
-    const body: Record<string, unknown> = {};
-    if (updates.folderId !== undefined) body.folderId = updates.folderId;
-    if (updates.frontText !== undefined) body.frontText = updates.frontText;
-    if (updates.backText !== undefined) body.backText = updates.backText;
-    if (updates.frontImage !== undefined) body.frontImage = updates.frontImage;
-    if (updates.nextReview !== undefined) body.nextReview = updates.nextReview;
-    if (updates.interval !== undefined) body.interval = updates.interval;
-    if (updates.reviews !== undefined) body.reviews = updates.reviews;
-    if (updates.easeFactor !== undefined) body.easeFactor = updates.easeFactor;
-    if (updates.status !== undefined) body.status = updates.status;
-    return body;
-  };
-
-  const handleAddFolder = useCallback(async (name: string, color: string, parentId?: string) => {
-    if (!hasActiveSubscription && parentId) {
-      openUpgradeModal(
-        'المجلدات الفرعية (مجلد داخل مجلد) متاحة لمشتركي Pro فقط. في الخطة المجانية يمكنك إنشاء مجلدات رئيسية فقط.'
-      );
-      return;
-    }
-    if (currentUser?.id) {
-      if (!hasActiveSubscription) {
-        const myFoldersCount = folders.filter(
-          (f) =>
-            !f.isSystem &&
-            String(f.userId || '') === String(currentUser.id) &&
-            !f.parentId
-        ).length;
-        if (myFoldersCount >= FREE_MAX_FOLDERS) {
-          openUpgradeModal(
-            `الخطة المجانية تسمح بحد أقصى ${FREE_MAX_FOLDERS} مجلدات رئيسية لكل لغة (بدون مجلدات فرعية). اشترك في Pro لمجلدات فرعية وحدود أوسع.`
-          );
-          return;
-        }
-      }
-      const tempId = `tmp_folder_${crypto.randomUUID()}`;
-      const optimisticFolder: Folder = {
-        id: tempId,
-        name,
-        color,
-        createdAt: Date.now(),
-        parentId,
-        userId: currentUser.id,
-        isSystem: false,
-      };
-      setFolders((prev) => [...prev, optimisticFolder]);
-      try {
-        await UserContentAPI.createFolder(learningLang, { name, color, parentId: parentId || undefined });
-        await refreshFoldersAndCardsFromApi();
-        showToast('تم إنشاء المجلد بنجاح', 'success');
-      } catch (e: any) {
-        setFolders((prev) => prev.filter((f) => f.id !== tempId));
-        showToast(e?.message || 'تعذر إنشاء المجلد على الخادم', 'error');
-      }
-      return;
-    }
-    const newFolder: Folder = { id: crypto.randomUUID(), name, color, createdAt: Date.now(), parentId };
-    setFolders(prev => [...prev, newFolder]);
-    showToast('تم إنشاء المجلد محلياً', 'success');
-  }, [currentUser?.id, currentUser, hasActiveSubscription, folders, learningLang, refreshFoldersAndCardsFromApi, setFolders, openUpgradeModal]);
-
-  const handleDeleteFolder = useCallback(async (id: string) => {
-    const folder = folders.find(f => f.id === id);
-    if (folder?.isSystem) {
-      showToast('لا يمكن حذف مجلدات النظام', 'error');
-      return;
-    }
-    const getFolderFamily = (parentId: string): string[] => {
-      const children = folders.filter(f => f.parentId === parentId);
-      let ids = children.map(c => c.id);
-      children.forEach(c => {
-        ids = [...ids, ...getFolderFamily(c.id)];
-      });
-      return ids;
-    };
-    const folderIdsToDelete = [id, ...getFolderFamily(id)];
-    if (currentUser?.id) {
-      const isOptimisticMine = String(folder?.id || '').startsWith('tmp_folder_');
-      const isOwnedByMe = folder && String(folder.userId || '') === String(currentUser.id);
-      if (!isOptimisticMine && !isOwnedByMe) {
-        showToast('لا يمكنك حذف هذا المجلد', 'error');
-        return;
-      }
-      if (isOptimisticMine) {
-        // لم يُحفَظ بعد على الخادم، لذا نحذفه محليًا فقط بدون استدعاء API.
-        setFolders(prev => prev.filter(f => !folderIdsToDelete.includes(f.id)));
-        setCards(prev => prev.filter(c => !folderIdsToDelete.includes(c.folderId)));
-        showToast('تم حذف المجلد', 'success');
-        return;
-      }
-      if (!canUserManageFolder(folder ?? null, currentUser)) {
-        showToast('لا يمكنك حذف هذا المجلد', 'error');
-        return;
-      }
-      const prevFolders = folders;
-      const prevCards = cards;
-      setFolders(prev => prev.filter(f => !folderIdsToDelete.includes(f.id)));
-      setCards(prev => prev.filter(c => !folderIdsToDelete.includes(c.folderId)));
-      try {
-        await UserContentAPI.deleteFolder(learningLang, id);
-        await refreshFoldersAndCardsFromApi();
-        showToast('تم حذف المجلد بنجاح', 'success');
-      } catch (e: any) {
-        setFolders(prevFolders);
-        setCards(prevCards);
-        showToast(e?.message || 'تعذر حذف المجلد', 'error');
-      }
-      return;
-    }
-    setFolders(prev => prev.filter(f => !folderIdsToDelete.includes(f.id)));
-    setCards(prev => prev.filter(c => !folderIdsToDelete.includes(c.folderId)));
-    showToast('تم حذف المجلد بنجاح', 'success');
-  }, [folders, currentUser?.id, learningLang, refreshFoldersAndCardsFromApi, setFolders, setCards]);
-
-  const handleEditFolder = useCallback(async (id: string, updates: Partial<Folder>) => {
-    if (!hasActiveSubscription && updates.parentId != null && String(updates.parentId).trim() !== '') {
-      openUpgradeModal(
-        'تعيين مجلد أب (مجلد فرعي) متاح لمشتركي Pro فقط. يمكنك الإبقاء على المجلد في الجذر أو ترقية خطتك.'
-      );
-      return;
-    }
-    if (currentUser?.id) {
-      const folder = folders.find(f => f.id === id);
-      if (folder && !canUserManageFolder(folder, currentUser)) {
-        showToast('لا يمكنك تعديل هذا المجلد', 'error');
-        return;
-      }
-      try {
-        await UserContentAPI.updateFolder(learningLang, id, {
-          name: updates.name,
-          color: updates.color,
-          parentId: updates.parentId,
-        });
-        await refreshFoldersAndCardsFromApi();
-        showToast('تم تعديل المجلد بنجاح ✨', 'success');
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر حفظ التعديل', 'error');
-      }
-      return;
-    }
-    setFolders(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-    showToast('تم تعديل المجلد بنجاح ✨', 'success');
-  }, [currentUser?.id, folders, learningLang, refreshFoldersAndCardsFromApi, setFolders, hasActiveSubscription, openUpgradeModal, showToast]);
-
-  const handleAddCard = useCallback(async (card: Partial<Card>): Promise<import('./types').AddCardResult> => {
-    const frontText = String(card.frontText ?? '').trim();
-    const backText = String(card.backText ?? '').trim();
-    if (!card.folderId || !frontText || !backText) {
-      showToast('أكمل الوجه الأمامي والخلفي للبطاقة ثم اختر مجلداً صالحاً.', 'error', 'modal');
-      return false;
-    }
-
-    if (currentUser?.id && !hasActiveSubscription) {
-      const requestedFolderId = String(card.folderId);
-      const myCardsInFolder = cards.filter((c) => {
-        if (String(c.folderId) !== requestedFolderId) return false;
-        if (String(c.userId || '') === String(currentUser.id)) return true;
-        const folder = folders.find((f) => f.id === requestedFolderId);
-        return !c.isSystem && !c.userId && !!folder && String(folder.userId || '') === String(currentUser.id);
-      }).length;
-      if (myCardsInFolder >= FREE_MAX_CARDS_PER_FOLDER) {
-        openUpgradeModal(
-          `الخطة المجانية تسمح بحد أقصى ${FREE_MAX_CARDS_PER_FOLDER} بطاقة داخل كل مجلد. اشترك في Pro لزيادة الحد.`
-        );
-        return 'pro_limit';
-      }
-    }
-
-    const cardFromUserApi = (raw: unknown): Card | null => {
-      const o = raw as Record<string, unknown> | null;
-      if (!o || typeof o !== 'object' || o.id == null) return null;
-      const st = String(o.status ?? 'new');
-      const status: Card['status'] =
-        st === 'learning' || st === 'review' || st === 'mastered' || st === 'new' ? st : 'new';
-      return {
-        id: String(o.id),
-        folderId: String(o.folderId ?? ''),
-        frontText: String(o.frontText ?? ''),
-        backText: String(o.backText ?? ''),
-        frontImage: o.frontImage ? String(o.frontImage) : undefined,
-        createdAt: Number(o.createdAt) || Date.now(),
-        nextReview: Number(o.nextReview) || Date.now(),
-        interval: Number(o.interval) || 0,
-        reviews: Number(o.reviews) || 0,
-        easeFactor: Number(o.easeFactor) || 2.5,
-        status,
-        isSystem: Boolean(o.isSystem),
-        userId: o.userId != null && o.userId !== '' ? String(o.userId) : null,
-      };
-    };
-
-    if (currentUser?.id) {
-      let folderId = String(card.folderId);
-      if (folderId.startsWith('tmp_folder_')) {
-        const meta = folders.find((f) => f.id === folderId);
-        const fname = meta?.name;
-        const synced = await refreshFoldersAndCardsFromApi();
-        const list = synced?.folders;
-        if (!list?.length) {
-          showToast('تعذر مزامنة المجلدات. تحقق من الاتصال بالخادم ثم أعد المحاولة.', 'error', 'modal');
-          return false;
-        }
-        const resolved =
-          (fname &&
-            list.find(
-              (f) =>
-                f.name === fname &&
-                !f.isSystem &&
-                String(f.userId || '') === String(currentUser.id)
-            )) ||
-          list.find((f) => !f.isSystem && String(f.userId || '') === String(currentUser.id));
-        if (!resolved) {
-          showToast(
-            'المجلد لم يُحفظ بعد على الخادم أو تغيّر. افتح تبويب البطاقات ثم جرّب الإضافة مرة أخرى.',
-            'error',
-            'modal'
-          );
-          return false;
-        }
-        folderId = resolved.id;
-      }
-
-      try {
-        const res = (await UserContentAPI.createCard(learningLang, {
-          folderId,
-          frontText,
-          backText,
-          frontImage: card.frontImage ?? null,
-        })) as { card?: unknown };
-        const created = cardFromUserApi(res?.card);
-        if (created) {
-          setCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created]));
-        }
-        /* لا ننتظر إعادة جلب كل البطاقات — قد يعلّق الطلب ويترك زر «جاري الحفظ» للأبد */
-        void refreshFoldersAndCardsFromApi();
-        addNotification({
-          type: 'system',
-          title: 'بطاقة جديدة 📚',
-          message: `تم إضافة "${frontText}" بنجاح إلى مجلدك.`,
-          icon: 'book'
-        });
-        showToast('تمت الإضافة بنجاح', 'success');
-        return true;
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر حفظ البطاقة على الخادم', 'error', 'modal');
-        return false;
-      }
-    }
-    const targetFolder = folders.find(f => f.id === card.folderId);
-    if (targetFolder?.isSystem) {
-      showToast('عذراً، لا يمكن إضافة كروت لمجلدات النظام إلا بعد تسجيل الدخول للمزامنة مع الخادم.', 'error');
-      return false;
-    }
-    const newCard: Card = {
-      ...card,
-      folderId: String(card.folderId),
-      frontText,
-      backText,
-      id: crypto.randomUUID(), createdAt: Date.now(), nextReview: Date.now(), interval: 0, reviews: 0, easeFactor: 2.5, status: 'new',
-    } as Card;
-    setCards(prev => [...prev, newCard]);
-    addNotification({
-      type: 'system',
-      title: 'بطاقة جديدة 📚',
-      message: `تم إضافة "${frontText}" بنجاح إلى مجلدك.`,
-      icon: 'book'
-    });
-    showToast('تمت الإضافة بنجاح', 'success');
-    return true;
-  }, [folders, cards, currentUser?.id, currentUser, hasActiveSubscription, learningLang, refreshFoldersAndCardsFromApi, addNotification, setCards, showToast, openUpgradeModal]);
-
-  const handleEditCard = useCallback(async (cardId: string, updates: Partial<Card>) => {
-    const oldCard = cards.find((c) => c.id === cardId);
-    const becomesMastered = updates.status === 'mastered' && oldCard?.status !== 'mastered';
-    if (currentUser?.id) {
-      const body = cardUpdatesToApi(updates);
-      if (Object.keys(body).length === 0) {
-        setCards(prevCards => prevCards.map(c => c.id === cardId ? { ...c, ...updates } : c));
-        if (becomesMastered) registerDailyMastered();
-        return;
-      }
-      try {
-        await UserContentAPI.updateCard(learningLang, cardId, body);
-        await refreshFoldersAndCardsFromApi();
-        if (becomesMastered) registerDailyMastered();
-        showToast('تم تعديل البطاقة بنجاح', 'success');
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر حفظ التعديل', 'error');
-      }
-      return;
-    }
-    setCards(prevCards => prevCards.map(c => c.id === cardId ? { ...c, ...updates } : c));
-    if (becomesMastered) registerDailyMastered();
-    showToast('تم تعديل البطاقة بنجاح', 'success');
-  }, [cards, currentUser?.id, learningLang, refreshFoldersAndCardsFromApi, setCards, registerDailyMastered]);
-
-  const handleEditCards = useCallback(async (cardIds: string[], updates: Partial<Card>) => {
-    if (cardIds.length === 0) return;
-    const masteryCount = updates.status === 'mastered'
-      ? cardIds.filter((id) => {
-          const c = cards.find((x) => x.id === id);
-          return c && c.status !== 'mastered';
-        }).length
-      : 0;
-    if (currentUser?.id) {
-      const body = cardUpdatesToApi(updates);
-      if (Object.keys(body).length === 0) {
-        setCards(prevCards => prevCards.map(c => cardIds.includes(c.id) ? { ...c, ...updates } : c));
-        for (let i = 0; i < masteryCount; i++) registerDailyMastered();
-        showToast('تم تحديث البطاقات المحددة', 'success');
-        return;
-      }
-      try {
-        await Promise.all(cardIds.map(id => UserContentAPI.updateCard(learningLang, id, body)));
-        await refreshFoldersAndCardsFromApi();
-        for (let i = 0; i < masteryCount; i++) registerDailyMastered();
-        showToast('تم تحديث البطاقات المحددة', 'success');
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر تحديث البطاقات', 'error');
-      }
-      return;
-    }
-    setCards(prevCards => prevCards.map(c => cardIds.includes(c.id) ? { ...c, ...updates } : c));
-    for (let i = 0; i < masteryCount; i++) registerDailyMastered();
-    showToast('تم تحديث البطاقات المحددة', 'success');
-  }, [cards, currentUser?.id, learningLang, refreshFoldersAndCardsFromApi, setCards, registerDailyMastered]);
-
-  const handleDeleteCard = useCallback(async (id: string) => {
-    if (currentUser?.id) {
-      try {
-        await UserContentAPI.deleteCard(learningLang, id);
-        await refreshFoldersAndCardsFromApi();
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر حذف البطاقة', 'error');
-      }
-      return;
-    }
-    setCards(prevCards => prevCards.filter(c => c.id !== id));
-  }, [currentUser?.id, learningLang, refreshFoldersAndCardsFromApi, setCards]);
-
-  const handleDeleteCards = useCallback(async (cardIds: string[]) => {
-    if (cardIds.length === 0) return;
-    if (currentUser?.id) {
-      try {
-        await Promise.all(cardIds.map(id => UserContentAPI.deleteCard(learningLang, id)));
-        await refreshFoldersAndCardsFromApi();
-        showToast('تم حذف البطاقات المحددة', 'success');
-      } catch (e: any) {
-        showToast(e?.message || 'تعذر حذف بعض البطاقات', 'error');
-      }
-      return;
-    }
-    setCards(prevCards => prevCards.filter(c => !cardIds.includes(c.id)));
-    showToast('تم حذف البطاقات المحددة', 'success');
-  }, [currentUser?.id, learningLang, refreshFoldersAndCardsFromApi, setCards]);
-
-  const handleDeleteAll = useCallback(async () => {
-    if (!currentUser?.id) {
-      showToast('سجّل الدخول لحذف مجلداتك وبطاقاتك الخاصة.', 'error');
-      return;
-    }
-    const myFolderIds = folders
-      .filter((f) => canUserManageFolder(f, currentUser))
-      .map((f) => f.id);
-    const serverFolderIds = myFolderIds.filter((id) => !String(id).startsWith('tmp_folder_'));
-    const prevFolders = folders;
-    const prevCards = cards;
-
-    // Optimistic UI: remove current user's content immediately.
-    setFolders((prev) => prev.filter((f) => !myFolderIds.includes(f.id)));
-    setCards((prev) => prev.filter((c) => !myFolderIds.includes(c.folderId)));
-
-    try {
-      await UserContentAPI.deleteAllMyFolders(learningLang);
-      await refreshFoldersAndCardsFromApi();
-      showToast('تم حذف جميع مجلداتك وبطاقاتك التي أنشأتها (بما فيها الفرعية).', 'success');
-    } catch (e: any) {
-      try {
-        // Fallback if bulk endpoint is unavailable.
-        await Promise.all(serverFolderIds.map((id) => UserContentAPI.deleteFolder(learningLang, id)));
-        await refreshFoldersAndCardsFromApi();
-        showToast('تم حذف مجلداتك وبطاقاتك الخاصة.', 'success');
-      } catch (fallbackError: any) {
-        setFolders(prevFolders);
-        setCards(prevCards);
-        showToast(fallbackError?.message || e?.message || 'تعذر إكمال الحذف', 'error');
-      }
-    }
-  }, [currentUser?.id, currentUser, folders, cards, learningLang, refreshFoldersAndCardsFromApi, setFolders, setCards]);
+  const {
+    handleAddFolder,
+    handleDeleteFolder,
+    handleEditFolder,
+    handleAddCard,
+    handleEditCard,
+    handleEditCards,
+    handleDeleteCard,
+    handleDeleteCards,
+    handleDeleteAll,
+  } = useUserContentActions({
+    currentUser,
+    learningLang,
+    hasActiveSubscription,
+    folders,
+    cards,
+    setFolders,
+    setCards,
+    refreshFoldersAndCardsFromApi,
+    openUpgradeModal,
+    showToast,
+    addNotification,
+    registerDailyMastered,
+  });
 
   const startSession = (folderId: string | null, mode: 'due' | 'all', specificCardIds?: string[]) => {
     let candidates: Card[] = [];
+    const isPracticeSession = mode === 'all' || !!specificCardIds?.length;
 
     if (specificCardIds && specificCardIds.length > 0) {
       // Custom Practice Mode: Specific cards selected by user
@@ -1357,7 +901,7 @@ export default function App() {
       return;
     }
 
-    setSessionQueue(queue);
+    setSessionQueue({ queue, isPractice: isPracticeSession });
 
     // Auto-speak first card using the known learning language
     setTimeout(() => {
@@ -1457,8 +1001,23 @@ export default function App() {
         }
         return prev.map((c) => (c.id === updatedCard.id ? updatedCard : c));
       });
+
+      const shouldPersist =
+        !!currentUser?.id &&
+        !updatedCard.isSystem &&
+        (updatedCard.userId == null || String(updatedCard.userId) === String(currentUser.id));
+
+      if (shouldPersist) {
+        const version = (reviewSaveVersionsRef.current[updatedCard.id] || 0) + 1;
+        reviewSaveVersionsRef.current[updatedCard.id] = version;
+        const body = cardUpdatesToApi(updatedCard);
+        void UserContentAPI.updateCard(learningLang, updatedCard.id, body).catch((error: any) => {
+          if (reviewSaveVersionsRef.current[updatedCard.id] !== version) return;
+          showToast(error?.message || 'تعذر حفظ موعد مراجعة البطاقة على الخادم', 'error');
+        });
+      }
     },
-    [registerDailyMastered, setCards]
+    [currentUser?.id, learningLang, registerDailyMastered, setCards]
   );
 
   const stats: Stats = useMemo(() => ({
@@ -1475,97 +1034,39 @@ export default function App() {
     },
     quizStats: quizStats
   }), [cards, completedStoryIds, quizStats, reviewLog]);
-  // --- GAMIFICATION LOGIC (XP & Levels) — من نشاط فعلي فقط (لا قيم وهمية) ---
-  const levelData = useMemo(() => {
-    const totalReviews = cards.reduce((s, c) => s + (c.reviews || 0), 0);
-    const mastered = cards.filter((c) => c.status === 'mastered').length;
-    const storyXP = completedStoryIds.length * 15;
-    const lessonXP = completedLessonIds.length * 10;
-    const quizXP =
-      quizStats && quizStats.totalQuizzes > 0
-        ? Math.round(quizStats.averageScore * Math.min(quizStats.totalQuizzes, 50) * 0.2)
-        : 0;
-    const reviewXP = totalReviews * 8;
-    const masteredXP = mastered * 25;
-    const totalXP = Math.max(0, reviewXP + masteredXP + storyXP + lessonXP + quizXP + dailyMissionState.bonusXp);
-
-    const level = Math.max(1, Math.floor(Math.sqrt(totalXP / 100)) + 1);
-    const currentLevelXP = Math.pow(level - 1, 2) * 100;
-    const nextLevelXP = Math.pow(level, 2) * 100;
-    const span = nextLevelXP - currentLevelXP;
-    const progressToNext = span > 0 ? Math.min(100, Math.max(0, ((totalXP - currentLevelXP) / span) * 100)) : 0;
-
-    return { level, totalXP, progressToNext };
-  }, [cards, completedStoryIds, completedLessonIds, quizStats, dailyMissionState.bonusXp]);
-
-  const statsWithXP = useMemo(() => ({
-    ...stats,
-    level: levelData.level,
-    xp: levelData.totalXP,
-    xpProgress: levelData.progressToNext
-  }), [stats, levelData]);
+  const levelData = useMemo(() => computeLevelData({
+    cards,
+    completedStoryCount: completedStoryIds.length,
+    completedLessonCount: completedLessonIds.length,
+    quizStats,
+    bonusXp: dailyMissionState.bonusXp,
+    gameXp,
+  }), [cards, completedStoryIds.length, completedLessonIds.length, quizStats, dailyMissionState.bonusXp, gameXp]);
 
   const dueCardsCount = cards.filter(c => c.nextReview <= Date.now()).length;
 
   // --- ROUTING LOGIC ---
   if (!currentUser) {
-    if (authView === 'landing') {
-      return (
-        <LandingPage
-          onLoginClick={() => setAuthView('login')}
-          isDarkMode={darkMode}
-          toggleTheme={toggleTheme}
-        />
-      );
-    }
-    if (authView === 'signup') {
-      return (
-        <div className="font-sans" dir={dir}>
-          <SignupView
-            onSignupSuccess={handleLoginSuccess}
-            onNavigateToLogin={() => setAuthView('login')}
-            onBackToHome={() => setAuthView('landing')}
-            isDarkMode={darkMode}
-            toggleTheme={toggleTheme}
-            langAvailability={langAvailability}
-          />
-        </div>
-      );
-    }
-    if (authView === 'forgot-password') {
-      return (
-        <div className="font-sans" dir={dir}>
-          <ForgotPasswordView
-            onBackToLogin={() => setAuthView('login')}
-            onBackToHome={() => setAuthView('landing')}
-            isDarkMode={darkMode}
-            toggleTheme={toggleTheme}
-            initialEmail={forgotPasswordPrefillEmail}
-          />
-        </div>
-      );
-    }
     return (
-      <div className="font-sans" dir={dir}>
-        <LoginView
-          onLoginSuccess={handleLoginSuccess}
-          onBackToHome={() => setAuthView('landing')}
-          onNavigateToSignup={() => setAuthView('signup')}
-          onForgotPassword={(emailFromField) => {
-            setForgotPasswordPrefillEmail(emailFromField);
-            setAuthView('forgot-password');
-          }}
-          isDarkMode={darkMode}
-          toggleTheme={toggleTheme}
-          langAvailability={langAvailability}
-        />
-      </div>
+      <AppAuthScreens
+        authView={authView}
+        dir={dir}
+        darkMode={darkMode}
+        animationsEnabled={animationsEnabled}
+        langAvailability={langAvailability}
+        forgotPasswordPrefillEmail={forgotPasswordPrefillEmail}
+        toggleTheme={toggleTheme}
+        setAuthView={setAuthView}
+        setForgotPasswordPrefillEmail={setForgotPasswordPrefillEmail}
+        onLoginSuccess={handleLoginSuccess}
+      />
     );
   }
 
   return (
     <LazyMotion features={domMax}>
-      <div className="min-h-screen w-full overflow-x-hidden bg-background dark:bg-dark-bg transition-colors duration-300 font-sans" dir={dir}>
+      <MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
+      <div className="site-responsive-root min-h-screen w-full overflow-x-hidden bg-background dark:bg-dark-bg transition-colors duration-300 font-sans" dir={dir}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:bg-white focus:text-gray-900 focus:px-4 focus:py-2 focus:rounded-xl focus:shadow-lg"
@@ -1608,57 +1109,18 @@ export default function App() {
         </AnimatePresence>
 
         <Suspense fallback={null}>
-          <ThemeVisuals theme={selectedTheme} isDarkMode={darkMode} customConfig={customThemeConfig} />
+          <ThemeVisuals theme={selectedTheme} isDarkMode={darkMode} animationsEnabled={animationsEnabled} customConfig={customThemeConfig} targetLanguage={learningLang as 'en' | 'de'} />
         </Suspense>
         <Toast message={toast.message} isVisible={toast.visible} onClose={() => setToast({ ...toast, visible: false })} type={toast.type} variant={toast.variant ?? 'default'} />
-        <AnimatePresence>
-          {upgradeModal.open && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9998] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
-              onClick={() => setUpgradeModal({ open: false, title: '', message: '' })}
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 16, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-                className="w-full max-w-md rounded-[2rem] border border-white/10 bg-gradient-to-br from-gray-900 via-gray-900 to-black text-white p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <Crown size={24} className="text-yellow-400" />
-                  <h3 className="text-xl font-black">{upgradeModal.title}</h3>
-                </div>
-                <p className="text-sm text-gray-200 leading-relaxed">{upgradeModal.message}</p>
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUpgradeModal({ open: false, title: '', message: '' });
-                      setSettingsTargetSection('subscription');
-                      setActiveTab('settings');
-                    }}
-                    className="flex-1 bg-gradient-to-r from-primary to-red-600 hover:from-red-600 hover:to-primary text-white px-5 py-3 rounded-xl font-black transition"
-                  >
-                    اشترك في Pro
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUpgradeModal({ open: false, title: '', message: '' })}
-                    className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-3 rounded-xl font-black transition"
-                  >
-                    لاحقاً
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-
+        <UpgradeModal
+          modal={upgradeModal}
+          onClose={() => setUpgradeModal({ open: false, title: '', message: '' })}
+          onOpenSubscription={() => {
+            setUpgradeModal({ open: false, title: '', message: '' });
+            setSettingsTargetSection('subscription');
+            setActiveTab('settings');
+          }}
+        />
 
         {!showOnboarding && (
           <Sidebar
@@ -1687,7 +1149,8 @@ export default function App() {
         <Suspense fallback={<LoadingScreen />}>
           {sessionQueue ? (
             <ReviewSession
-              queue={sessionQueue}
+              queue={sessionQueue.queue}
+              practiceMode={sessionQueue.isPractice}
               onExit={() => setSessionQueue(null)}
               onUpdateCard={handleReviewSessionUpdateCard}
               onLogReview={logReviewCount}
@@ -1695,15 +1158,19 @@ export default function App() {
               targetLanguage={learningLang as 'en' | 'de'}
             />
           ) : !showOnboarding ? (
-            <div className={`${dir === 'rtl' ? 'md:mr-72' : 'md:ml-72'}`}>
-              <header className="md:hidden bg-white dark:bg-dark-card shadow-sm p-4 flex justify-between items-center sticky top-0 z-30">
+            <div className={`${dir === 'rtl' ? 'xl:mr-80' : 'xl:ml-80'} ${activeTab === 'ai_assistant' ? 'h-dvh overflow-hidden flex flex-col' : ''}`}>
+              <header className={`xl:hidden bg-white dark:bg-dark-card shadow-sm p-4 flex justify-between items-center sticky top-0 z-30`}>
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Logo variant="full" size="sm" className="!justify-end" />
                 </div>
                 <button onClick={() => setMobileMenuOpen(true)} className="p-2 text-gray-600 dark:text-gray-300 shrink-0"><Menu size={24} /></button>
               </header>
 
-              <main id="main-content" tabIndex={-1} className="min-h-screen relative">
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className={`relative ${activeTab === 'ai_assistant' ? 'flex-1 overflow-hidden flex flex-col' : 'min-h-screen'}`}
+              >
                 {/* Notification Drawer - Always available */}
                 <Suspense fallback={null}>
                   <NotificationDrawer
@@ -1719,14 +1186,14 @@ export default function App() {
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeTab}
-                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 1.02 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     transition={{
-                      duration: 0.35,
+                      duration: 0.2,
                       ease: [0.23, 1, 0.32, 1]
                     }}
-                    className="w-full h-full"
+                    className={`app-route-frame w-full ${activeTab === 'ai_assistant' ? 'flex-1 min-h-0 flex flex-col' : 'h-full'}`}
                   >
 
 
@@ -1805,6 +1272,7 @@ export default function App() {
                     )}
                     {activeTab === 'community' && (
                       <CommunityView
+                        t={t}
                         userName={userName}
                         userImage={userImage}
                         currentUser={currentUser}
@@ -1828,31 +1296,27 @@ export default function App() {
                         }}
                       />
                     )}
+                    {activeTab === 'games' && (
+                      <GamesView
+                        t={t}
+                        dir={dir}
+                        learningLang={learningLang as 'en' | 'de'}
+                        subscriptionPlan={currentUser?.plan ?? 'free'}
+                        onGameXpEarned={(xp) => setGameXp((prev) => Math.max(0, prev + xp))}
+                      />
+                    )}
                     {activeTab === 'sentences' && (
                       hasActiveSubscription ? (
                         <SentencesView topics={sentenceTopics} learningLang={learningLang as 'en' | 'de'} />
                       ) : (
-                        <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 md:p-10 text-center" dir="rtl">
-                          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-500/20 to-orange-600/30 flex items-center justify-center mb-6 border border-amber-400/30">
-                            <Crown className="w-10 h-10 text-amber-400" />
-                          </div>
-                          <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-3">المواقف الحياتية</h1>
-                          <p className="text-gray-600 dark:text-gray-400 max-w-lg text-base md:text-lg font-bold leading-relaxed mb-8">
-                            هذا القسم يتطلب <span className="text-amber-600 dark:text-amber-400">اشتراك Pro</span> — جمل وتعبيرات عملية لكل موقف (سفر، عمل، تسوق، وغيرها) مع تدريب كامل على مستويات A1–C2.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openUpgradeModal(
-                                'ترقّ حسابك لفتح قسم المواقف الحياتية وجميع المحتوى التدريبي.',
-                                'المواقف الحياتية مع Pro'
-                              )
-                            }
-                            className="px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-lg shadow-xl shadow-amber-500/25 hover:opacity-95 transition"
-                          >
-                            عرض خطط الاشتراك
-                          </button>
-                        </div>
+                        <ProRequiredPanel
+                          onUpgrade={() =>
+                            openUpgradeModal(
+                              'ترقّ حسابك لفتح قسم المواقف الحياتية وجميع المحتوى التدريبي.',
+                              'المواقف الحياتية مع Pro'
+                            )
+                          }
+                        />
                       )
                     )}
                     {activeTab === 'settings' && (
@@ -1942,6 +1406,7 @@ export default function App() {
           ) : null}
         </Suspense>
       </div >
+      </MotionConfig>
     </LazyMotion >
   );
 }

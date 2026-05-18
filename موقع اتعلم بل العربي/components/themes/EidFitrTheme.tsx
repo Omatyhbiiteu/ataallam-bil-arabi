@@ -2,6 +2,14 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Cloud } from './SharedElements';
 
+type ThemeLanguage = 'ar' | 'en' | 'de';
+
+const eidFitrGreetings: Record<ThemeLanguage, { title: string; subtitle: string; dir: 'rtl' | 'ltr'; lang: string }> = {
+    ar: { title: 'عيد فطر مبارك', subtitle: 'تقبل الله صيامكم وقيامكم', dir: 'rtl', lang: 'ar' },
+    en: { title: 'Eid Mubarak', subtitle: 'May your Eid be filled with joy', dir: 'ltr', lang: 'en' },
+    de: { title: 'Frohes Zuckerfest', subtitle: 'Freude und Frieden zum Eid', dir: 'ltr', lang: 'de' },
+};
+
 // ============================================================
 // --- EID FITR THEME COMPONENTS ---
 // ============================================================
@@ -108,7 +116,9 @@ export const Firework: React.FC<{ delay: number; color: string; x: string; y: st
     </motion.div>
 );
 
-const EidFitrTheme = ({ isDarkMode }: { isDarkMode: boolean }) => {
+const EidFitrTheme = ({ isDarkMode, targetLanguage = 'ar' }: { isDarkMode: boolean; targetLanguage?: ThemeLanguage }) => {
+    const greeting = eidFitrGreetings[targetLanguage] ?? eidFitrGreetings.ar;
+
     return (
         <motion.div key="eid_fitr_l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1.5 }} className="absolute inset-0 overflow-hidden">
 
@@ -162,16 +172,18 @@ const EidFitrTheme = ({ isDarkMode }: { isDarkMode: boolean }) => {
                     {/* Eid Greeting Banner — Day */}
                     <motion.div className="absolute z-20 pointer-events-none text-center"
                         style={{ top: '7%', left: '50%', transform: 'translateX(-50%)' }}
+                        dir={greeting.dir}
+                        lang={greeting.lang}
                         animate={{ y: [0, -7, 0] }}
                         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}>
                         <div className="font-black text-3xl md:text-5xl px-7 py-3 rounded-2xl whitespace-nowrap"
                             style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,248,220,0.92))', border: '1.5px solid rgba(201,162,39,0.45)', boxShadow: '0 8px 40px rgba(201,162,39,0.25), inset 0 1px 0 rgba(255,255,255,0.8)', color: '#1a3c1a', textShadow: '0 1px 6px rgba(0,80,0,0.15)' }}>
-                            🌙✨ عيد مبارك سعيد ✨🌙
+                            🌙✨ {greeting.title} ✨🌙
                         </div>
                         <motion.div className="text-amber-700 text-sm mt-2 font-bold tracking-widest"
                             animate={{ opacity: [0.5, 1, 0.5] }}
                             transition={{ duration: 2.5, repeat: Infinity }}>
-                            ✦ تقبل الله صيامكم وقيامكم ✦
+                            ✦ {greeting.subtitle} ✦
                         </motion.div>
                     </motion.div>
 
@@ -258,16 +270,18 @@ const EidFitrTheme = ({ isDarkMode }: { isDarkMode: boolean }) => {
                     {/* Glowing Arabic greeting banner */}
                     <motion.div className="absolute z-20 pointer-events-none text-center"
                         style={{ top: '7%', left: '50%', transform: 'translateX(-50%)' }}
+                        dir={greeting.dir}
+                        lang={greeting.lang}
                         animate={{ opacity: [0.8, 1, 0.8] }}
                         transition={{ duration: 4, repeat: Infinity }}>
                         <div className="font-black text-3xl md:text-5xl whitespace-nowrap"
                             style={{ color: '#ffd54f', textShadow: '0 0 20px rgba(255,200,80,0.9), 0 0 50px rgba(255,200,80,0.5), 0 0 90px rgba(255,200,80,0.2)', fontFamily: 'serif', letterSpacing: '0.04em' }}>
-                            🌙 عيد مبارك سعيد 🌙
+                            🌙 {greeting.title} 🌙
                         </div>
                         <motion.div className="text-amber-400/80 text-sm font-bold mt-2 tracking-widest"
                             animate={{ opacity: [0.4, 1, 0.4] }}
                             transition={{ duration: 2.5, repeat: Infinity }}>
-                            ✦ تقبل الله صيامكم وقيامكم ✦
+                            ✦ {greeting.subtitle} ✦
                         </motion.div>
                     </motion.div>
 

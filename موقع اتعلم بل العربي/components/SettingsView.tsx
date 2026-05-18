@@ -3,7 +3,7 @@ import {
     Globe, Bell, Moon, Sun, User, Mail, Lock, Volume2, Target,
     BookOpen, Shield, Eye, Download, Upload, Trash2, HelpCircle,
     MessageSquare, Star, Palette, Type, Zap, Clock, Key, Smartphone, Heart,
-    Settings as SettingsIcon, ChevronRight, Edit3, Camera, Check, Activity, Award, LogOut, AlertCircle, Crown, X, Copy, Wallet, Banknote,
+    Settings as SettingsIcon, ChevronRight, ChevronDown, Edit3, Camera, Check, Activity, Award, LogOut, AlertCircle, Crown, X, Copy, Wallet, Banknote,
     Lightbulb, Sparkles, Feather, Scroll, ArrowRight, ArrowLeft, Trophy, Gift, CheckCircle, RefreshCw, Loader2
 } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
@@ -124,6 +124,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onRefreshNotifications
 }) => {
     const [activeSection, setActiveSection] = useState<'account' | 'notifications' | 'appearance' | 'support' | 'subscription'>('appearance');
+    const [isMobileSettingsMenuOpen, setIsMobileSettingsMenuOpen] = useState(false);
 
   const [deleteNotifTarget, setDeleteNotifTarget] = useState<AppNotification | null>(null);
   const [deleteNotifBusy, setDeleteNotifBusy] = useState(false);
@@ -372,12 +373,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const EMAIL_LIMIT = 40;
 
     const sections = [
-        { id: 'account', label: 'الحساب', icon: User },
-        { id: 'notifications', label: 'الإشعارات', icon: Bell },
-        { id: 'appearance', label: 'المظهر', icon: Palette },
-        { id: 'subscription', label: 'الاشتراك', icon: Crown },
-        { id: 'support', label: 'الدعم', icon: HelpCircle },
+        { id: 'account', label: t.settings.account || 'الحساب', icon: User },
+        { id: 'notifications', label: t.settings.notifications || 'الإشعارات', icon: Bell },
+        { id: 'appearance', label: t.settings.appearance || 'المظهر', icon: Palette },
+        { id: 'subscription', label: t.settings.subscription || 'الاشتراك', icon: Crown },
+        { id: 'support', label: t.settings.support || 'الدعم', icon: HelpCircle },
     ];
+
+    const activeSettingsSection = sections.find((section) => section.id === activeSection) || sections[0];
+    const ActiveSettingsIcon = activeSettingsSection.icon;
 
     const colorOptions = [
         { id: 'default', name: 'افتراضي', gradient: 'from-amber-500 to-orange-600', color: '#c0392b' },
@@ -385,6 +389,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         { id: 'blue', name: 'أزرق نيون', gradient: 'from-blue-500 to-indigo-600', color: '#3b82f6' },
         { id: 'purple', name: 'بنفسجي', gradient: 'from-purple-500 to-violet-600', color: '#8b5cf6' },
         { id: 'green', name: 'زمردي', gradient: 'from-green-500 to-emerald-600', color: '#10b981' },
+    ];
+
+    const uiLanguageOptions: Array<{ id: Language; label: string; nativeLabel: string; dir: 'rtl' | 'ltr' }> = [
+        { id: 'ar', label: t.settings.arabic || 'العربية', nativeLabel: 'AR', dir: 'rtl' },
+        { id: 'en', label: t.settings.english || 'English', nativeLabel: 'EN', dir: 'ltr' },
+        { id: 'de', label: t.settings.german || 'Deutsch', nativeLabel: 'DE', dir: 'ltr' },
     ];
 
     const ToggleSwitch = ({ enabled, onChange }: { enabled: boolean; onChange: () => void }) => (
@@ -403,7 +413,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     );
 
     return (
-        <div className="p-4 md:p-8 lg:p-12 space-y-6 md:space-y-8 animate-slide-up pb-24 max-w-[1920px] mx-auto min-h-screen font-sans">
+        <div className="p-4 md:p-8 lg:p-12 space-y-6 md:space-y-8 animate-fade-in pb-24 max-w-[1920px] mx-auto min-h-screen font-sans">
 
 
             {/* Header */}
@@ -428,8 +438,68 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 {/* Sidebar Navigation */}
                 <div className="lg:col-span-3">
-                    <div className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-4 shadow-xl border border-white/20 dark:border-white/5 sticky top-8">
-                        <nav className="space-y-2">
+                    <div className="bg-white/80 dark:bg-slate-900/70 backdrop-blur-2xl rounded-[2rem] p-3 md:p-4 shadow-xl border border-white/20 dark:border-white/5 lg:sticky lg:top-8">
+                        <div className="lg:hidden">
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileSettingsMenuOpen((open) => !open)}
+                                aria-expanded={isMobileSettingsMenuOpen}
+                                className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary text-white shadow-lg shadow-primary/25 active:scale-[0.99] transition"
+                            >
+                                <span className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                                    <ActiveSettingsIcon size={22} />
+                                </span>
+                                <span className="flex-1 text-right">
+                                    <span className="block text-xs font-black text-white/65 mb-1">قسم الإعدادات</span>
+                                    <span className="block font-black tracking-wide">{activeSettingsSection.label}</span>
+                                </span>
+                                <ChevronDown
+                                    size={22}
+                                    className={`transition-transform duration-300 ${isMobileSettingsMenuOpen ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            <AnimatePresence initial={false}>
+                                {isMobileSettingsMenuOpen && (
+                                    <m.nav
+                                        initial={{ opacity: 0, y: -8, height: 0 }}
+                                        animate={{ opacity: 1, y: 0, height: 'auto' }}
+                                        exit={{ opacity: 0, y: -8, height: 0 }}
+                                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="pt-3 space-y-2">
+                                            {sections.map((section) => {
+                                                const Icon = section.icon;
+                                                const isActive = activeSection === section.id;
+                                                return (
+                                                    <button
+                                                        key={section.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setActiveSection(section.id as any);
+                                                            setIsMobileSettingsMenuOpen(false);
+                                                        }}
+                                                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 ${isActive
+                                                            ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                                                            : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
+                                                            }`}
+                                                    >
+                                                        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-white/5'}`}>
+                                                            <Icon size={20} />
+                                                        </span>
+                                                        <span className="font-black">{section.label}</span>
+                                                        {isActive && <Check size={18} className="mr-auto" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </m.nav>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        <nav className="hidden lg:block space-y-2">
                             {sections.map((section) => {
                                 const Icon = section.icon;
                                 const isActive = activeSection === section.id;
@@ -446,7 +516,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             <Icon size={22} />
                                         </div>
                                         <span className="font-bold tracking-wide">{section.label}</span>
-                                        <ChevronRight size={18} className={`mr-auto transition-transform duration-500 ${isActive ? 'translate-x-1' : 'opacity-0'}`} />
+                                        <ChevronRight size={18} className={`${language === 'ar' ? 'mr-auto' : 'ml-auto rotate-180'} transition-transform duration-500 ${isActive ? 'translate-x-1' : 'opacity-0'}`} />
                                     </button>
                                 );
                             })}
@@ -1029,10 +1099,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <div className="space-y-8 animate-fade-in">
                             <h2 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
                                 <Palette className="text-primary" />
-                                تخصيص المظهر
+                                {t.settings.appearanceTitle || 'تخصيص المظهر'}
                             </h2>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Interface Language */}
+                                <div className="md:col-span-2 bg-white/80 dark:bg-slate-900/60 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl border border-white/20 dark:border-white/5 space-y-6">
+                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                                <Globe size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-gray-900 dark:text-white text-lg">{t.settings.interfaceLanguage || t.settings.language}</h3>
+                                                <p className="text-xs text-gray-500 font-medium">{t.settings.interfaceLanguageHint || 'Change menus, labels, and layout direction.'}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:min-w-[520px]">
+                                            {uiLanguageOptions.map((option) => {
+                                                const isSelected = language === option.id;
+                                                return (
+                                                    <button
+                                                        key={option.id}
+                                                        type="button"
+                                                        onClick={() => setLanguage(option.id)}
+                                                        className={`group relative overflow-hidden rounded-2xl border px-4 py-4 text-start transition-all duration-300 ${isSelected
+                                                            ? 'border-primary bg-primary text-white shadow-lg shadow-primary/25'
+                                                            : 'border-gray-200 bg-white text-gray-700 hover:border-primary/40 hover:bg-primary/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200 dark:hover:bg-white/[0.08]'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <div className="text-base font-black">{option.label}</div>
+                                                                <div className={`mt-1 text-xs font-bold ${isSelected ? 'text-white/75' : 'text-gray-400'}`}>
+                                                                    {option.dir === 'rtl' ? (t.settings.directionRtl || 'RTL') : (t.settings.directionLtr || 'LTR')}
+                                                                </div>
+                                                            </div>
+                                                            <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black ${isSelected ? 'bg-white/18 text-white' : 'bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-300'}`}>
+                                                                {option.nativeLabel}
+                                                            </span>
+                                                        </div>
+                                                        {isSelected && (
+                                                            <Check size={18} className="absolute top-3 end-3 text-white/80" />
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Color Theme */}
                                 <div className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-xl p-8 rounded-[2rem] shadow-xl border border-white/20 dark:border-white/5 space-y-6">
                                     <div className="flex items-center gap-4">
@@ -1040,8 +1157,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             <Palette size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-lg">لون التطبيق</h3>
-                                            <p className="text-xs text-gray-500 font-medium">اختر اللون الذي يعبر عن شخصيتك</p>
+                                            <h3 className="font-bold text-gray-900 dark:text-white text-lg">{t.settings.appColor || 'لون التطبيق'}</h3>
+                                            <p className="text-xs text-gray-500 font-medium">{t.settings.appColorHint || 'اختر اللون الذي يعبر عن شخصيتك'}</p>
                                         </div>
                                     </div>
 
@@ -1068,16 +1185,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             <Type size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white text-lg">حجم الخط</h3>
-                                            <p className="text-xs text-gray-500 font-medium">تحكم في حجم النصوص للقراءة المريحة</p>
+                                            <h3 className="font-bold text-gray-900 dark:text-white text-lg">{t.settings.fontSize || 'حجم الخط'}</h3>
+                                            <p className="text-xs text-gray-500 font-medium">{t.settings.fontSizeHint || 'تحكم في حجم النصوص للقراءة المريحة'}</p>
                                         </div>
                                     </div>
 
                                     <div className="flex bg-gray-100 dark:bg-slate-800/50 p-1.5 rounded-2xl">
                                         {[
-                                            { id: 'small', label: 'صغير', iconStr: 'A' },
-                                            { id: 'medium', label: 'متوسط', iconStr: 'AA' },
-                                            { id: 'large', label: 'كبير', iconStr: 'AAA' },
+                                            { id: 'small', label: t.settings.small || 'صغير', iconStr: 'A' },
+                                            { id: 'medium', label: t.settings.medium || 'متوسط', iconStr: 'AA' },
+                                            { id: 'large', label: t.settings.large || 'كبير', iconStr: 'AAA' },
                                         ].map((size) => (
                                             <button
                                                 key={size.id}
@@ -1106,11 +1223,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             {darkMode ? <Moon size={24} /> : <Sun size={24} />}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-gray-900 dark:text-white">الوضع الليلي</h3>
-                                            <p className="text-xs text-gray-500">مريح للعين في المساء</p>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">{t.settings.darkMode || 'الوضع الليلي'}</h3>
+                                            <p className="text-xs text-gray-500">{t.settings.darkModeHint || 'مريح للعين في المساء'}</p>
                                         </div>
                                     </div>
                                     <ToggleSwitch enabled={darkMode} onChange={toggleTheme} />
+                                </div>
+
+                                {/* Reduce Motion */}
+                                <div className="bg-white/80 dark:bg-slate-900/60 backdrop-blur-xl p-6 rounded-[2rem] shadow-xl border border-white/20 dark:border-white/5 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                            <Activity size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">{t.settings.reduceMotion || 'تقليل الحركات'}</h3>
+                                            <p className="text-xs text-gray-500">{t.settings.reduceMotionHint || 'أداء أهدأ وأخف على الموبايل والأجهزة الضعيفة'}</p>
+                                        </div>
+                                    </div>
+                                    <ToggleSwitch enabled={!animationsEnabled} onChange={() => setAnimationsEnabled(!animationsEnabled)} />
                                 </div>
 
 
@@ -1157,7 +1288,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                 <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6">
                                     <SettingsIcon className="text-primary animate-[spin_5s_linear_infinite]" size={40} />
                                 </div>
-                                <h4 className="text-gray-500 dark:text-gray-400 font-black tracking-widest uppercase text-xs mb-2">Et3alem Bel Araby · v2.2</h4>
+                                <h4 className="text-gray-500 dark:text-gray-400 font-black tracking-widest uppercase text-xs mb-2">KeyLang · v2.2</h4>
                                 <p className="text-2xl font-black text-gray-900 dark:text-white mb-6">Pro Education Suite</p>
                             </div>
                         </div>
@@ -1618,7 +1749,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                             </p>
                                         </div>
 
-                                        <div className="bg-gray-50 dark:bg-white/5 rounded-[2rem] p-6 space-y-6 border border-gray-100 dark:border-white/5 relative overflow-hidden">
+                                        <div className="bg-gray-50 dark:bg-white/5 rounded-[2rem] p-6 space-y-6 border border-gray-100 dark:border-white/5 relative">
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between gap-3">
                                                     <label className="text-[10px] uppercase tracking-widest font-black text-gray-400">
@@ -1630,7 +1761,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="flex gap-2">
+                                                <div className="relative flex items-center bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 transition-all p-1.5 gap-2">
                                                     <input
                                                         value={couponCodeInput}
                                                         onChange={(e) => {
@@ -1640,13 +1771,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                                             setAppliedCouponCode(null);
                                                         }}
                                                         placeholder="مثال: EGYPT20"
-                                                        className="flex-1 rounded-2xl bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 px-4 py-3 text-gray-900 dark:text-gray-200 font-mono font-bold outline-none"
+                                                        className="flex-1 bg-transparent px-3 py-2 text-gray-900 dark:text-gray-200 font-mono font-bold outline-none border-none min-w-0"
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => void handleApplyCoupon()}
                                                         disabled={couponApplying || !couponCodeInput.trim()}
-                                                        className="px-4 py-3 rounded-2xl font-black bg-primary text-white hover:scale-[1.02] transition-transform disabled:opacity-60"
+                                                        className="px-5 py-2.5 rounded-xl font-black bg-primary text-white hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 shrink-0 min-w-[95px] flex items-center justify-center text-center text-sm"
                                                     >
                                                         {couponApplying ? 'جاري التحقق...' : 'تطبيق'}
                                                     </button>

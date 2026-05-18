@@ -99,6 +99,7 @@ export interface Card {
   folderId: string; // Link card to a folder
   frontText: string;
   frontImage?: string; // Base64
+  frontImageFit?: 'wide' | 'portrait';
   backText: string;
   backImage?: string; // Base64
   createdAt: number;
@@ -130,6 +131,71 @@ export interface Question {
   mediaUrl?: string;
 }
 
+export type GameType = 'word_match' | 'sentence_builder' | 'listening';
+
+export interface GameQuestion {
+  id: string;
+  prompt: string;
+  answer: string;
+  translation?: string | null;
+  options?: string[];
+  tokens?: string[];
+  audioText?: string | null;
+  explanation?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface GameSet {
+  id: string;
+  lang: 'en' | 'de';
+  type: GameType;
+  title: string;
+  description: string;
+  level: string;
+  subLevel?: string | null;
+  icon?: string | null;
+  color: string;
+  xpReward: number;
+  timeLimitSeconds: number;
+  isActive: boolean;
+  questionCount?: number;
+  questions?: GameQuestion[];
+}
+
+export interface GameAttempt {
+  id: string;
+  gameSetId: string;
+  lang: 'en' | 'de';
+  type: GameType;
+  plan: 'free' | 'silver' | 'pro' | 'enterprise' | string;
+  score: number;
+  totalQuestions: number;
+  correctCount: number;
+  xpEarned: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  details?: Array<{
+    questionId: string;
+    answer: string | string[];
+    correctAnswer: string;
+    correct: boolean;
+  }>;
+}
+
+export interface GameUsage {
+  plan: 'free' | 'silver' | 'pro' | 'enterprise' | string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  unlimited: boolean;
+  usageDate: string;
+  resetAt: string;
+  resetHours?: number | null;
+  nextAttemptAt?: string | null;
+  cooldownActive?: boolean;
+}
+
 export interface Story {
   id: string;
   title: string;
@@ -151,6 +217,9 @@ export interface Story {
   readingProgress?: number; // 0-100 percentage
   lastReadAt?: number; // Timestamp of last read
   viewCount?: number; // Number of times viewed (mock data)
+  createdAt?: string | null; // API creation date for stable ordering
+  contentDirection?: 'auto' | 'rtl' | 'ltr';
+  translationDirection?: 'auto' | 'rtl' | 'ltr';
 }
 
 export interface ReviewLog {
@@ -222,6 +291,7 @@ export interface Lesson {
   resources?: Resource[]; // PDFs or Links
 
   questions?: Question[];
+  ratingSummary?: LessonRatingSummary;
   // Calculated at runtime, not stored
   isLocked?: boolean;
   isCompleted?: boolean;
@@ -489,6 +559,20 @@ export interface RetentionMetric {
   retentionRate: number; // Percentage
 }
 
+export interface LessonRatingSatisfaction {
+  status: 'insufficient' | 'excellent' | 'very_good' | 'average' | 'weak' | 'very_bad';
+  label: string;
+  color: 'gray' | 'green' | 'emerald' | 'amber' | 'orange' | 'red';
+  description?: string;
+}
+
+export interface LessonRatingSummary {
+  averageRating: number;
+  ratingsCount: number;
+  distribution: Record<'5' | '4' | '3' | '2' | '1', number>;
+  satisfaction: LessonRatingSatisfaction;
+}
+
 export interface AnalyticsDashboardData {
   overview: {
     totalStudents: number;
@@ -572,6 +656,28 @@ export interface MediaItem {
   size: number; // In bytes
   uploadedAt: string; // ISO string
   dimensions?: { width: number; height: number };
+}
+
+export interface CardImageAsset {
+  id: string;
+  lang: 'en' | 'de';
+  arLabel: string;
+  targetWord: string;
+  imageUrl: string;
+  isActive?: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface CardImageQuota {
+  allowed: boolean;
+  plan: 'free' | 'silver' | 'pro' | 'enterprise';
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  resetsAt: string | null;
+  secondsRemaining: number;
+  message?: string | null;
 }
 
 

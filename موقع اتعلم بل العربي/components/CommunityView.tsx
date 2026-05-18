@@ -36,7 +36,8 @@ function resolveAvatarUrl(avatar: string | null | undefined, name: string): stri
         return avatar;
     }
     if (avatar && avatar.startsWith('/')) {
-        const base = (import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+        const apiUrl = import.meta.env.VITE_BACKEND_API_URL || (import.meta.env.DEV ? '/api' : 'http://127.0.0.1:5000/api');
+        const base = apiUrl.startsWith('/') ? '' : apiUrl.replace(/\/api\/?$/, '');
         return `${base}${avatar}`;
     }
     if (avatar) {
@@ -46,6 +47,7 @@ function resolveAvatarUrl(avatar: string | null | undefined, name: string): stri
 }
 
 interface CommunityViewProps {
+    t: any;
     userName: string;
     userImage: string | null;
     currentUser: User | null;
@@ -62,6 +64,7 @@ interface CommunityViewProps {
 }
 
 export const CommunityView: React.FC<CommunityViewProps> = ({
+    t,
     userName,
     userImage,
     currentUser,
@@ -79,6 +82,12 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
     const [community, setCommunity] = useState<CommunityPayload | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const c = t.community || {};
+    const isRtl = t.locale !== 'en' && t.locale !== 'de';
+    const targetLanguageLabel = learningLang === 'de' ? (t.dictionary?.german || 'German') : (t.dictionary?.english || 'English');
+    const alignClass = isRtl ? 'text-right' : 'text-left';
+    const replaceVars = (template: string, vars: Record<string, string | number>) =>
+        Object.entries(vars).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), template);
 
     const totalReviews = cards.reduce((acc, card) => acc + card.reviews, 0);
     const masteredCards = cards.filter((c) => c.status === 'mastered').length;
@@ -113,7 +122,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
             const data = (await UserAPI.getCommunityLeaderboard(learningLang)) as CommunityPayload;
             setCommunity(data);
         } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : 'تعذر تحميل المجتمع';
+            const msg = e instanceof Error ? e.message : (c.loadError || 'تعذر تحميل المجتمع');
             setError(msg);
             setCommunity(null);
         } finally {
@@ -138,8 +147,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
     const challenges = [
         {
             id: 1,
-            title: 'بطل المراجعة',
-            desc: 'راجع 20 بطاقة اليوم',
+            title: c.reviewHeroTitle || 'بطل المراجعة',
+            desc: c.reviewHeroDesc || 'راجع 20 بطاقة اليوم',
             progress: Math.min(todayReviews, 20),
             target: 20,
             xpReward: 50,
@@ -150,8 +159,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
         },
         {
             id: 2,
-            title: 'دودة الكتب',
-            desc: 'أكمل قصة واحدة اليوم',
+            title: c.bookwormTitle || 'قارئ نشيط',
+            desc: c.bookwormDesc || 'أكمل قصة واحدة اليوم',
             progress: Math.min(dailyMission.storiesToday, 1),
             target: 1,
             xpReward: 30,
@@ -162,8 +171,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
         },
         {
             id: 3,
-            title: 'طريق الإتقان',
-            desc: 'أتقن 10 بطاقات اليوم',
+            title: c.masteryPathTitle || 'طريق الإتقان',
+            desc: c.masteryPathDesc || 'أتقن 10 بطاقات اليوم',
             progress: Math.min(dailyMission.masteriesToday, 10),
             target: 10,
             xpReward: 100,
@@ -184,9 +193,9 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
             <div className="p-4 md:p-8 max-w-2xl mx-auto min-h-screen flex items-center justify-center font-sans">
                 <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-gray-100 dark:border-gray-800 text-center space-y-4">
                     <Users className="mx-auto text-indigo-500" size={48} />
-                    <h1 className="text-2xl font-black text-gray-900 dark:text-white">المجتمع</h1>
+                    <h1 className="text-2xl font-black text-gray-900 dark:text-white">{c.title || 'المجتمع'}</h1>
                     <p className="text-gray-600 dark:text-gray-400 font-medium">
-                        سجّل الدخول لمشاهدة لوحة الشرف والتصنيف لمجتمع لغة التعلم الذي اخترته.
+                        {c.loginMessage || 'سجّل الدخول لمشاهدة لوحة الشرف والتصنيف لمجتمع لغة التعلم الذي اخترته.'}
                     </p>
                 </div>
             </div>
@@ -202,10 +211,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                         <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center border border-white/20 shadow-inner">
                             <Users size={40} className="text-indigo-300" />
                         </div>
-                        <div className="text-center md:text-right">
-                            <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-2">المجتمع</h1>
+                        <div className={`text-center md:${isRtl ? 'text-right' : 'text-left'}`}>
+                            <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-2">{c.title || 'المجتمع'}</h1>
                             <p className="text-lg text-indigo-200 font-medium">
-                                تنافس مع متعلمي {learningLang === 'de' ? 'الألمانية' : 'الإنجليزية'} — لوحة منفصلة لكل لغة
+                                {replaceVars(c.subtitle || 'تنافس مع متعلمي {language} — لوحة منفصلة لكل لغة', { language: targetLanguageLabel })}
                             </p>
                         </div>
                     </div>
@@ -213,13 +222,13 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                     <div className="flex gap-4 p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
                         <div className="text-center px-4 border-l border-white/10">
                             <div className="text-2xl font-black text-amber-400">{displayXP.toLocaleString()}</div>
-                            <div className="text-xs font-bold text-indigo-200">الخبرة (XP)</div>
+                            <div className="text-xs font-bold text-indigo-200">{c.xp || 'الخبرة (XP)'}</div>
                         </div>
                         <div className="text-center px-4">
                             <div className="text-2xl font-black text-orange-400 flex items-center justify-center gap-1">
                                 {displayStreak} <Flame size={16} />
                             </div>
-                            <div className="text-xs font-bold text-indigo-200">أيام متتالية</div>
+                            <div className="text-xs font-bold text-indigo-200">{c.streakDays || 'أيام متتالية'}</div>
                         </div>
                     </div>
                 </div>
@@ -236,10 +245,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-xl border border-gray-100 dark:border-gray-800">
                         <div className="flex items-center justify-between mb-6 px-2">
                             <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                                <Target className="text-rose-500" /> مهام اليوم
+                                <Target className="text-rose-500" /> {c.dailyMissions || 'مهام اليوم'}
                             </h2>
                             <span className="text-sm font-bold text-gray-500 bg-gray-100 dark:bg-slate-800 px-3 py-1 rounded-full">
-                                تتجدد غداً
+                                {c.renewsTomorrow || 'تتجدد غداً'}
                             </span>
                         </div>
 
@@ -254,7 +263,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                         type="button"
                                         key={challenge.id}
                                         onClick={() => onDailyChallengeNavigate(challenge.id)}
-                                        className={`w-full text-right p-4 rounded-2xl border-2 transition-all cursor-pointer hover:ring-2 hover:ring-primary/30 active:scale-[0.99] ${
+                                        className={`w-full ${alignClass} p-4 rounded-2xl border-2 transition-all cursor-pointer hover:ring-2 hover:ring-primary/30 active:scale-[0.99] ${
                                             isCompleted
                                                 ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-900/30'
                                                 : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-white/5'
@@ -270,7 +279,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                                 </span>
                                                 {challenge.claimed && (
                                                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                                                        تم المكافأة
+                                                        {c.rewardClaimed || 'تمت المكافأة'}
                                                     </span>
                                                 )}
                                             </span>
@@ -286,7 +295,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                                     }
                                                 >
                                                     {isCompleted
-                                                        ? 'مكتملة!'
+                                                        ? (c.completed || 'مكتملة!')
                                                         : `${challenge.progress} / ${challenge.target}`}
                                                 </span>
                                                 <span className="text-gray-400">{percent}%</span>
@@ -310,10 +319,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                             <div>
                                 <h2 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                                    <Trophy className="text-amber-500" size={28} /> لوحة الشرف
+                                    <Trophy className="text-amber-500" size={28} /> {c.leaderboard || 'لوحة الشرف'}
                                 </h2>
                                 <p className="text-sm font-bold text-gray-500 dark:text-gray-400 mt-1 pr-1">
-                                    يظهر هنا كل من اختار هذه اللغة في حسابه، مع تقدّمه — الترتيب حسب إجمالي XP.
+                                    {c.leaderboardHint || 'يظهر هنا كل من اختار هذه اللغة في حسابه، مع تقدّمه — الترتيب حسب إجمالي XP.'}
                                 </p>
                             </div>
                             <button
@@ -321,7 +330,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                 onClick={() => void loadCommunity()}
                                 disabled={loading}
                                 className="p-2 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-slate-700 disabled:opacity-50 shrink-0"
-                                title="تحديث القائمة"
+                                title={c.refreshLeaderboard || 'تحديث القائمة'}
                             >
                                 {loading ? (
                                     <Loader2 className="animate-spin" size={20} />
@@ -333,11 +342,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
 
                         {loading && leaderboardRows.length === 0 ? (
                             <div className="flex justify-center py-16 text-gray-500 font-bold gap-2 items-center">
-                                <Loader2 className="animate-spin" size={24} /> جاري التحميل...
+                                <Loader2 className="animate-spin" size={24} /> {c.loading || 'جاري التحميل...'}
                             </div>
                         ) : leaderboardRows.length === 0 ? (
                             <p className="text-center text-gray-500 font-bold py-8">
-                                لا يوجد متعلمون مسجّلون لهذه اللغة بعد. اختر لغة التعلم في الإعدادات أو كن أول من يظهر على اللوحة.
+                                {c.emptyLeaderboard || 'لا يوجد متعلمون مسجّلون لهذه اللغة بعد. اختر لغة التعلم في الإعدادات أو كن أول من يظهر على اللوحة.'}
                             </p>
                         ) : (
                             <div className="space-y-3">
@@ -405,7 +414,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                                         {user.name}
                                                         {user.is_you && (
                                                             <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full">
-                                                                أنت
+                                                                {c.you || 'أنت'}
                                                             </span>
                                                         )}
                                                     </div>
@@ -418,20 +427,20 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                                                     : 'text-gray-300'
                                                             }
                                                         />
-                                                        {user.streak} أيام متتالية
+                                                        {user.streak} {c.streakDays || 'أيام متتالية'}
                                                     </div>
                                                     <div className="flex flex-wrap gap-1.5 mt-2">
                                                         <span className="text-[10px] font-black bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md">
-                                                            {user.stories ?? 0} قصة
+                                                            {user.stories ?? 0} {c.storiesUnit || 'قصة'}
                                                         </span>
                                                         <span className="text-[10px] font-black bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md">
-                                                            {user.mastered ?? 0} متقنة
+                                                            {user.mastered ?? 0} {c.masteredUnit || 'متقنة'}
                                                         </span>
                                                         <span className="text-[10px] font-black bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-md">
-                                                            {user.reviews ?? 0} مراجعة
+                                                            {user.reviews ?? 0} {c.reviewsUnit || 'مراجعة'}
                                                         </span>
                                                         <span className="text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md">
-                                                            {user.quiz_total ?? 0} كويز
+                                                            {user.quiz_total ?? 0} {c.quizUnit || 'كويز'}
                                                             {(user.quiz_avg_percent ?? 0) > 0
                                                                 ? ` · ${user.quiz_avg_percent}%`
                                                                 : ''}
@@ -462,11 +471,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                             <Medal size={150} />
                         </div>
                         <div className="relative z-10">
-                            <p className="text-amber-100 font-bold mb-1">تصنيفك الحالي</p>
+                            <p className="text-amber-100 font-bold mb-1">{c.currentRank || 'تصنيفك الحالي'}</p>
                             <div className="text-6xl font-black mb-2 flex items-center justify-center gap-2">
                                 {yourRank > 0 ? yourRank : '—'}{' '}
                                 <span className="text-2xl text-amber-200 font-bold">
-                                    من{' '}
+                                    {c.of || 'من'}{' '}
                                     {community != null && community.total_members > 0
                                         ? community.total_members
                                         : '…'}
@@ -474,17 +483,20 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                             </div>
                             <p className="text-sm font-bold bg-white/20 inline-block px-4 py-1.5 rounded-full backdrop-blur-sm">
                                 {yourRank === 1
-                                    ? 'أنت في الصدارة! استمر يا بطل'
+                                    ? (c.topRankMessage || 'أنت في الصدارة! استمر يا بطل')
                                     : community?.ahead
-                                      ? `تحتاج ${community.ahead.xp_needed.toLocaleString()} XP للتفوق على ${community.ahead.name.split(/\s+/)[0]}`
-                                      : 'واصل التعلم لتصعد في الترتيب'}
+                                      ? replaceVars(c.needXpAhead || 'تحتاج {xp} XP للتفوق على {name}', {
+                                          xp: community.ahead.xp_needed.toLocaleString(),
+                                          name: community.ahead.name.split(/\s+/)[0],
+                                        })
+                                      : (c.keepLearningRank || 'واصل التعلم لتصعد في الترتيب')}
                             </p>
                         </div>
                     </div>
 
                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-xl border border-gray-100 dark:border-gray-800 space-y-4">
                         <h3 className="font-black text-gray-900 dark:text-white px-2 mb-4">
-                            إحصاءاتك مقارنة بالمجتمع
+                            {c.communityStats || 'إحصاءاتك مقارنة بالمجتمع'}
                         </h3>
 
                         <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl flex items-center gap-4">
@@ -492,11 +504,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                 <BookOpen size={24} />
                             </div>
                             <div>
-                                <div className="text-xs font-bold text-gray-500">القصص المكتملة</div>
+                                <div className="text-xs font-bold text-gray-500">{c.completedStories || 'القصص المكتملة'}</div>
                                 <div className="font-black text-gray-900 dark:text-white">
                                     {storiesCount}{' '}
                                     <span className="text-xs text-emerald-500">
-                                        أعلى من {community?.percentiles.stories ?? 0}% من المستخدمين
+                                        {replaceVars(c.aboveUsers || 'أعلى من {percent}% من المستخدمين', { percent: community?.percentiles.stories ?? 0 })}
                                     </span>
                                 </div>
                             </div>
@@ -507,11 +519,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                 <Crown size={24} />
                             </div>
                             <div>
-                                <div className="text-xs font-bold text-gray-500">البطاقات المتقنة</div>
+                                <div className="text-xs font-bold text-gray-500">{c.masteredCards || 'البطاقات المتقنة'}</div>
                                 <div className="font-black text-gray-900 dark:text-white">
                                     {masteredCards}{' '}
                                     <span className="text-xs text-emerald-500">
-                                        أعلى من {community?.percentiles.mastered ?? 0}% من المستخدمين
+                                        {replaceVars(c.aboveUsers || 'أعلى من {percent}% من المستخدمين', { percent: community?.percentiles.mastered ?? 0 })}
                                     </span>
                                 </div>
                             </div>
@@ -522,9 +534,9 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                                 <Trophy size={24} />
                             </div>
                             <div>
-                                <div className="text-xs font-bold text-gray-500">مجموع الكويزات</div>
+                                <div className="text-xs font-bold text-gray-500">{c.totalQuizzes || 'مجموع الكويزات'}</div>
                                 <div className="font-black text-gray-900 dark:text-white">
-                                    {quizStats?.totalQuizzes || 0} دقة {quizStats?.averageScore || 0}%
+                                    {quizStats?.totalQuizzes || 0} {c.accuracy || 'دقة'} {quizStats?.averageScore || 0}%
                                 </div>
                             </div>
                         </div>
@@ -534,7 +546,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({
                         type="button"
                         className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black shadow-sm border border-indigo-100 dark:border-indigo-900/30 hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
                     >
-                        <Activity size={20} /> شارك تقدمك مع الأصدقاء
+                        <Activity size={20} /> {c.shareProgress || 'شارك تقدمك مع الأصدقاء'}
                     </button>
                 </div>
             </div>

@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, SRSGrade } from '../types';
 import { speakText, detectLang } from '../services/ttsService';
-import { calculateNextReview } from '../services/srsService';
-import { ArrowLeft, Brain, Volume2, Mic, MicOff, Check, X as XIcon, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { calculateNextReview, formatReviewIntervalLabel, getNextReviewIntervalMinutes } from '../services/srsService';
+import { ArrowLeft, Brain, Volume2, Mic, Check, X as XIcon, Sparkles, Image as ImageIcon, Clock } from 'lucide-react';
 import { SessionSummary } from './SessionSummary';
 import confetti from 'canvas-confetti';
 import { Toast } from './Toast';
@@ -16,9 +16,19 @@ interface ReviewSessionProps {
   t: any;
   dir: string;
   targetLanguage?: 'en' | 'de';
+  practiceMode?: boolean;
 }
 
-export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onUpdateCard, onLogReview, t, dir, targetLanguage }) => {
+const formatSessionWait = (milliseconds: number): string => {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+type CardImageOrientation = 'portrait' | 'landscape' | 'square' | 'unknown';
+
+export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onUpdateCard, onLogReview, t, dir, targetLanguage, practiceMode = false }) => {
   const [activeQueue, setActiveQueue] = useState<Card[]>(queue);
   const [waitingQueue, setWaitingQueue] = useState<Card[]>([]);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -29,6 +39,7 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
   const [speechResult, setSpeechResult] = useState<string | null>(null);
   const [pronunciationScore, setPronunciationScore] = useState<number | null>(null);
   const [isAiEvaluating, setIsAiEvaluating] = useState(false);
+  const [imageOrientations, setImageOrientations] = useState<Record<string, CardImageOrientation>>({});
 
   const [stats, setStats] = useState<Record<SRSGrade, number>>({
     [SRSGrade.AGAIN]: 0,
@@ -40,6 +51,12 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
   const [hardestCards, setHardestCards] = useState<Card[]>([]);
 
   const currentCard = activeQueue[0];
+  const nextWaitingCard = waitingQueue.reduce<Card | null>((closest, card) => {
+    if (!card.dueTimeInSession) return closest;
+    if (!closest?.dueTimeInSession) return card;
+    return card.dueTimeInSession < closest.dueTimeInSession ? card : closest;
+  }, null);
+  const nextWaitMs = nextWaitingCard?.dueTimeInSession ? nextWaitingCard.dueTimeInSession - now : 0;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -88,8 +105,14 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
     if (!currentCard) return;
     const updates = calculateNextReview(currentCard, grade);
     const updatedCard = { ...currentCard, ...updates } as Card;
-    onUpdateCard(updatedCard);
-    onLogReview(1, Date.now());
+    const sessionCard = practiceMode
+      ? ({ ...currentCard, lastGrade: grade, dueTimeInSession: undefined } as Card)
+      : updatedCard;
+
+    if (!practiceMode) {
+      onUpdateCard(updatedCard);
+      onLogReview(1, Date.now());
+    }
     setStats(prev => ({ ...prev, [grade]: (prev[grade] || 0) + 1 }));
     let points = 0;
     if (grade === SRSGrade.EASY) points = 3;
@@ -104,17 +127,27 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
     setIsFlipped(false);
 
     if (grade === SRSGrade.AGAIN) {
-      // الإصلاح: استخدام updatedCard بدلاً من currentCard لحفظ الخصائص المُحدَّثة
-      setActiveQueue(prev => { const [, ...rest] = prev; return [...rest, updatedCard]; });
+      // مجدداً: ترجع في آخر الجلسة الحالية (لا تقاطع التدفق)
+      setActiveQueue(prev => { const [, ...rest] = prev; return [...rest, sessionCard]; });
     } else if (grade === SRSGrade.HARD) {
-      // صعب: تختفي الآن وتعود بعد 5 دقائق في نفس الجلسة
+      if (practiceMode) {
+        setActiveQueue(prev => { const [, ...rest] = prev; return [...rest, sessionCard]; });
+        setWaitingQueue(prev => prev.filter(c => c.id !== currentCard.id));
+        setSpeechResult(null);
+        setPronunciationScore(null);
+        return;
+      }
+      // صعب: يدخل انتظار قصير، ثم يعود تلقائياً عند انتهاء المؤقت.
       setActiveQueue(prev => prev.slice(1));
-      setWaitingQueue(prev => [...prev, { ...updatedCard, dueTimeInSession: Date.now() + 5 * 60 * 1000 }]);
+      setWaitingQueue(prev => {
+        const withoutCurrent = prev.filter(c => c.id !== updatedCard.id);
+        return [...withoutCurrent, updatedCard].sort((a, b) => (a.dueTimeInSession || 0) - (b.dueTimeInSession || 0));
+      });
     } else if (grade === SRSGrade.GOOD) {
-      // حسن: تخرج من الجلسة الحالية (موعدها غداً)
+      // كويس: تخرج من الجلسة، وتظهر مرة أخرى حسب موعد المراجعة.
       setActiveQueue(prev => prev.slice(1));
     } else if (grade === SRSGrade.EASY) {
-      // سهل: تخرج من الجلسة (موعدها الأسبوع القادم)
+      // سهل: تخرج من الجلسة بموعد أطول من "جيد".
       setActiveQueue(prev => prev.slice(1));
     }
 
@@ -141,7 +174,7 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
 
     // Use the known targetLanguage for recognition when available
     const backLang = detectLang(currentCard.backText);
-    recognition.lang = (targetLanguage && backLang !== 'ar') ? targetLanguage : backLang;
+    recognition.lang = backLang === 'ar' ? 'ar-SA' : (targetLanguage === 'de' ? 'de-DE' : 'en-US');
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
@@ -198,7 +231,7 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
 
   if (showSummary) {
     return (
-      <div className={`flex-1 md:w-[calc(100%-18rem)] w-full ${dir === 'rtl' ? 'md:mr-72' : 'md:ml-72'}`}>
+      <div className={`flex-1 xl:w-[calc(100%-20rem)] w-full ${dir === 'rtl' ? 'xl:mr-80' : 'xl:ml-80'}`}>
         <SessionSummary results={{
           totalReviewed: (Object.values(stats) as number[]).reduce((a: number, b: number) => a + b, 0),
           breakdown: stats as any,
@@ -211,7 +244,7 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
     );
   }
 
-  const marginClass = dir === 'rtl' ? 'md:mr-72' : 'md:ml-72';
+  const marginClass = dir === 'rtl' ? 'xl:mr-80' : 'xl:ml-80';
   // الإصلاح: حساب التقدم الحقيقي بإجمالي الكل ناقص المتبقي
   const totalInSession = queue.length;
   const remainingCount = activeQueue.length + waitingQueue.length;
@@ -220,6 +253,22 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
   const timeElapsed = Math.floor((now - sessionStartTime) / 1000);
   const minutes = Math.floor(timeElapsed / 60);
   const seconds = timeElapsed % 60;
+  const currentImageOrientation = currentCard?.frontImage ? imageOrientations[currentCard.id] || 'unknown' : 'unknown';
+  const hasPortraitFrontImage = currentCard?.frontImageFit === 'portrait' || (!currentCard?.frontImageFit && currentImageOrientation === 'portrait');
+
+  const handleFrontImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!currentCard) return;
+    const image = event.currentTarget;
+    if (!image.naturalWidth || !image.naturalHeight) return;
+
+    const ratio = image.naturalWidth / image.naturalHeight;
+    const orientation: CardImageOrientation =
+      ratio < 0.85 ? 'portrait' : ratio > 1.2 ? 'landscape' : 'square';
+
+    setImageOrientations((prev) => (
+      prev[currentCard.id] === orientation ? prev : { ...prev, [currentCard.id]: orientation }
+    ));
+  };
 
   return (
     <div
@@ -248,6 +297,11 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
         </button>
 
         <div className="flex items-center gap-3">
+          {practiceMode && (
+            <div className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-black border ${isFlipped ? 'bg-white/10 border-white/10 text-amber-200' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 text-amber-600'}`}>
+              تدريب حر
+            </div>
+          )}
           {/* Timer Widget */}
           <div className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-2xl font-mono text-sm ${isFlipped ? 'bg-white/10 border border-white/10 text-gray-300' : 'bg-white dark:bg-dark-card shadow-warm border border-stone-100 dark:border-gray-700 text-gray-500 dark:text-gray-400'}`}>
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -270,11 +324,40 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
       </div>
 
       {/* Current Card Container */}
+      {!currentCard && waitingQueue.length > 0 && (
+        <div className="w-full max-w-md px-4">
+          <div className="bg-white dark:bg-dark-card rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-10 shadow-warm-lg border border-stone-100 dark:border-gray-800 text-center">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-50 dark:bg-orange-950/30 text-orange-500 flex items-center justify-center mb-5">
+              <Clock size={34} />
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">كل الكروت في انتظار المراجعة</h2>
+            <p className="text-sm font-bold text-gray-500 dark:text-gray-400 leading-relaxed">
+              أقرب كرت هيفتح تلقائياً بعد انتهاء العداد.
+            </p>
+            <div className="mt-6 rounded-2xl bg-stone-50 dark:bg-gray-800 border border-stone-100 dark:border-gray-700 p-5">
+              <p className="text-xs font-black text-gray-400 mb-2">الكرت القادم</p>
+              <p className="text-lg font-black text-gray-900 dark:text-white truncate">{nextWaitingCard?.frontText || 'بطاقة مراجعة'}</p>
+              <p className="mt-3 text-4xl font-black font-mono text-orange-500">{formatSessionWait(nextWaitMs)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onExit}
+              className="mt-6 w-full bg-stone-900 dark:bg-white text-white dark:text-gray-900 py-3.5 rounded-2xl font-black hover:opacity-90 transition"
+            >
+              إنهاء الجلسة الآن
+            </button>
+          </div>
+        </div>
+      )}
+
       {currentCard && (
-        <div className="w-full max-w-sm sm:max-w-md px-4 flex flex-col items-center">
+        <div className={`w-full px-4 flex flex-col items-center transition-[max-width] duration-500 ease-out ${hasPortraitFrontImage ? 'max-w-[340px] sm:max-w-[370px]' : 'max-w-sm sm:max-w-md'}`}>
           <div
             className={`relative w-full cursor-pointer flip-card ${isFlipped ? 'flipped' : ''}`}
-            style={{ height: 'min(60vh, 480px)', minHeight: '320px' }}
+            style={{
+              height: hasPortraitFrontImage ? 'min(72vh, 560px)' : 'min(62vh, 500px)',
+              minHeight: hasPortraitFrontImage ? '420px' : '340px',
+            }}
             onClick={handleFlip}
           >
             <div className="flip-card-inner w-full h-full relative shadow-warm-lg rounded-[2rem] md:rounded-[2.5rem]">
@@ -299,9 +382,21 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
                 </div>
 
                 {/* Image area - flex-1 to fill remaining space */}
-                <div className="flex-1 mt-3 w-full rounded-xl md:rounded-2xl overflow-hidden border-2 border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-inner min-h-0">
+                <div className={`flex-1 mt-3 w-full rounded-xl md:rounded-2xl overflow-hidden border-2 border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-inner min-h-0 relative ${hasPortraitFrontImage ? 'p-3 md:p-4' : ''}`}>
                   {currentCard.frontImage ? (
-                    <img src={currentCard.frontImage} alt="" className="w-full h-full object-cover" />
+                    <div className="relative z-[1] w-full h-full flex items-center justify-center">
+                      <img src={currentCard.frontImage} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30" />
+                      <img
+                        src={currentCard.frontImage}
+                        alt=""
+                        onLoad={handleFrontImageLoad}
+                        className={
+                          hasPortraitFrontImage
+                            ? 'relative z-[1] h-full max-h-full w-auto max-w-[78%] object-contain rounded-xl bg-white/75 dark:bg-white/10 p-1.5 shadow-2xl ring-1 ring-white/70 dark:ring-white/10'
+                            : 'relative z-[1] w-full h-full object-cover'
+                        }
+                      />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-300 dark:text-gray-600">
                       <ImageIcon size={28} className="opacity-70" />
@@ -380,10 +475,10 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
           {isFlipped && (
             <div className="mt-4 md:mt-6 grid grid-cols-4 gap-2 md:gap-4 w-full animate-slide-up">
               {[
-                { grade: SRSGrade.AGAIN, label: t.review.again, sub: '< 1m', color: 'text-red-500', bg: 'bg-red-50/80 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-900/40' },
-                { grade: SRSGrade.HARD, label: t.review.hard, sub: '5m', color: 'text-orange-500', bg: 'bg-orange-50/80 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-900/40' },
-                { grade: SRSGrade.GOOD, label: t.review.good, sub: '1d', color: 'text-emerald-500', bg: 'bg-emerald-50/80 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900/40' },
-                { grade: SRSGrade.EASY, label: t.review.easy, sub: '7d', color: 'text-blue-500', bg: 'bg-blue-50/80 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/40' }
+                { grade: SRSGrade.AGAIN, label: t.review.again, color: 'text-red-500', bg: 'bg-red-50/80 dark:bg-red-950/30', border: 'border-red-200 dark:border-red-900/40' },
+                { grade: SRSGrade.HARD, label: t.review.hard, color: 'text-orange-500', bg: 'bg-orange-50/80 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-900/40' },
+                { grade: SRSGrade.GOOD, label: t.review.good, color: 'text-emerald-500', bg: 'bg-emerald-50/80 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-900/40' },
+                { grade: SRSGrade.EASY, label: t.review.easy, color: 'text-blue-500', bg: 'bg-blue-50/80 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-900/40' }
               ].map((btn, idx) => (
                 <button
                   key={idx}
@@ -391,7 +486,9 @@ export const ReviewSession: React.FC<ReviewSessionProps> = ({ queue, onExit, onU
                   className={`group p-2.5 md:p-5 rounded-2xl ${btn.bg} border-2 ${btn.border} transition-all duration-200 flex flex-col items-center shadow-sm hover:shadow-lg hover:-translate-y-1 active:scale-95`}
                 >
                   <span className={`${btn.color} font-black text-sm md:text-lg mb-0.5`}>{btn.label}</span>
-                  <span className="text-[10px] md:text-xs text-stone-500 dark:text-gray-400 font-bold uppercase opacity-70">{btn.sub}</span>
+                  <span className="text-[10px] md:text-xs text-stone-500 dark:text-gray-400 font-bold uppercase opacity-70">
+                    {practiceMode ? 'بدون عداد' : formatReviewIntervalLabel(getNextReviewIntervalMinutes(currentCard, btn.grade))}
+                  </span>
                 </button>
               ))}
             </div>

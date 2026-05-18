@@ -1,13 +1,12 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { db } from '../services/db';
-import { Folder, Story, Card, Question, Module, Lesson, Resource, AppTheme, ThemeSchedule, CustomThemeConfig, Coupon, PromoBanner, BroadcastNotification, SupportTicket, MediaItem, SentenceTopic, InspirationalSlide } from '../types';
+import { Folder, Story, Card, Question, Module, AppTheme, CustomThemeConfig } from '../types';
 import { INITIAL_STORIES_EN, INITIAL_STORIES_DE, INITIAL_FOLDERS_EN, INITIAL_FOLDERS_DE, INITIAL_CARDS_EN, INITIAL_CARDS_DE, INITIAL_CURRICULUM_EN, INITIAL_CURRICULUM_DE, INITIAL_SENTENCE_TOPICS } from '../data/initialData';
 import { LayoutDashboard, BookOpen, Layers, Plus, Trash2, X, Save, Image as ImageIcon, ArrowLeft, ShieldCheck, Lock, Languages, Menu, HelpCircle, CheckSquare, ListOrdered, Type, CheckCircle, Edit2, Map, Clock, Video, Mic, Link as LinkIcon, FileText, Bold, Italic, Underline, AlignLeft, List, MousePointer2, ChevronRight, UploadCloud, FileAudio, PlayCircle, Book, Activity, Users, Star, TrendingUp, Palette, Moon, Flag, Sparkles, Sliders, Calendar, Wallet, CreditCard, Banknote, Zap, Smartphone, RefreshCw, Crown, Check, Award, Headphones, Download } from 'lucide-react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import { Toast } from './Toast';
-import { PaymentService, PaymentSettings, SubscriptionPlan, PlanFeature } from '../services/paymentService';
 import { AdminUsersView } from './AdminUsersView';
 import { AdminManagersView } from './AdminManagersView';
 import { AdminSidebar, AdminLang } from './admin/AdminSidebar';
@@ -25,96 +24,16 @@ import { CurriculumTab } from './admin/CurriculumTab';
 import { QuestionForm } from './admin/QuestionForm';
 import { FoldersTab } from './admin/FoldersTab';
 import { AdminSentencesView } from './admin/AdminSentencesView';
+import { AdminGamesView } from './admin/AdminGamesView';
 import { AdminInspirationalTab } from './admin/AdminInspirationalTab';
 import { AdminUserProblemsTab } from './admin/AdminUserProblemsTab';
 import { useAdminSupportNotifications } from '../hooks/useAdminSupportNotifications';
 import { AdminSupportNotificationBell } from './admin/AdminSupportNotificationBell';
 import { AdminAPI } from '../services/apiClient';
-
-interface AdminDashboardProps {
-    onExit: () => void;
-    folders: Folder[];
-    setFolders: (folders: Folder[]) => void;
-    stories: Story[];
-    setStories: (stories: Story[]) => void;
-    cards: Card[];
-    setCards: (cards: Card[]) => void;
-    curriculum?: Module[];
-    setCurriculum?: (curriculum: Module[]) => void;
-    t: any;
-    selectedTheme: AppTheme;
-    setSelectedTheme: (theme: AppTheme) => void;
-    themeSchedules: ThemeSchedule[];
-    setThemeSchedules: (schedules: ThemeSchedule[]) => void;
-    customThemeConfig: CustomThemeConfig;
-    setCustomThemeConfig: (config: CustomThemeConfig) => void;
-    coupons: Coupon[];
-    setCoupons: (coupons: Coupon[]) => void;
-    banners: PromoBanner[];
-    setBanners: (banners: PromoBanner[]) => void;
-    broadcasts: BroadcastNotification[];
-    setBroadcasts: (broadcasts: BroadcastNotification[]) => void;
-    tickets: SupportTicket[];
-    setTickets: (tickets: SupportTicket[]) => void;
-    mediaItems: MediaItem[];
-    setMediaItems: (items: MediaItem[]) => void;
-    sentenceTopics: SentenceTopic[];
-    setSentenceTopics: (topics: SentenceTopic[]) => void;
-    inspirationalSlides: InspirationalSlide[];
-    setInspirationalSlides: (slides: InspirationalSlide[]) => void;
-    refreshFoldersFromApi: () => Promise<void>;
-    // Dark Mode Props
-    isDarkMode: boolean;
-    toggleTheme: () => void;
-    learningLang: 'en' | 'de';
-    langAvailability: any;
-    setLangAvailability: (val: any) => void;
-}
-
-const FOLDER_COLORS = [
-    'bg-blue-500', 'bg-red-500', 'bg-green-500', 'bg-purple-500',
-    'bg-orange-500', 'bg-pink-500', 'bg-teal-500', 'bg-indigo-500'
-];
-
-const generateId = () => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-    }
-    return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-};
-
-/** يحدد أي جذر رسمي (من قائمة المجلدات الرئيسية) يتبع له folderId — مباشر أو فرعي */
-const resolveOfficialDictRootId = (folderId: string, officialRoots: Folder[], merged: Folder[]): string => {
-    if (officialRoots.some(r => r.id === folderId)) return folderId;
-    let cur = merged.find(f => f.id === folderId);
-    const seen = new Set<string>();
-    while (cur?.parentId && !seen.has(cur.id)) {
-        seen.add(cur.id);
-        if (officialRoots.some(r => r.id === cur.parentId)) return cur.parentId;
-        cur = merged.find(f => f.id === cur.parentId);
-    }
-    return officialRoots[0]?.id ?? folderId;
-};
-
-// Helper to determine if a URL is likely an embed (YouTube/Vimeo)
-const getEmbedUrl = (url: string) => {
-    if (!url) return null;
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
-        return `https://www.youtube.com/embed/${videoId}`;
-    }
-    if (url.includes('vimeo.com')) {
-        const videoId = url.split('/').pop();
-        return `https://player.vimeo.com/video/${videoId}`;
-    }
-    return null; // Return null if it's a direct file or base64
-};
-
-import { THEMES_DATA } from './ThemeVisuals';
-
+import { AdminDashboardProps } from './admin/AdminDashboard.types';
+import { generateId, resolveOfficialDictRootId } from './admin/adminDashboardUtils';
+import { THEMES_DATA } from './themeData';
 import { getAutoTheme } from '../utils/themeScheduler';
-
-// ... (other imports)
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onExit, folders, setFolders, stories, setStories, cards, setCards, curriculum = [], setCurriculum = (_: Module[]) => { },
@@ -126,7 +45,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     langAvailability, setLangAvailability
 }) => {
     // Navigation State
-    const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'inspirational'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'stories' | 'folders' | 'curriculum' | 'dictionary_manager' | 'themes' | 'payment_settings' | 'user_problems' | 'users' | 'admins' | 'marketing' | 'analytics' | 'notifications' | 'support' | 'media_library' | 'sentences' | 'games' | 'inspirational'>('overview');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const adminInbox = useAdminSupportNotifications(45000);
@@ -204,13 +123,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const otherLangFlag = otherLang === 'de' ? '🇩🇪' : '🇺🇸';
     const currentLangFlag = learningLang === 'de' ? '🇩🇪' : '🇺🇸';
 
-    const enStoriesForAdmin = useMemo(() => {
-        return db.load<Story[]>('stories', getDefaults('stories', 'en'), 'en');
-    }, []);
+    // ─── Admin Stories State (reactive — updates immediately after save/delete) ───
+    const [enStoriesForAdmin, setEnStoriesForAdmin] = useState<Story[]>(
+        () => db.load<Story[]>('stories', getDefaults('stories', 'en'), 'en')
+    );
+    const [deStoriesForAdmin, setDeStoriesForAdmin] = useState<Story[]>(
+        () => db.load<Story[]>('stories', getDefaults('stories', 'de'), 'de')
+    );
 
-    const deStoriesForAdmin = useMemo(() => {
-        return db.load<Story[]>('stories', getDefaults('stories', 'de'), 'de');
-    }, []);
+    // Helper: reload both languages from API → update admin state + db + notify main site
+    const refreshAdminStories = async () => {
+        const [enRes, deRes] = await Promise.all([AdminAPI.getStories('en'), AdminAPI.getStories('de')]);
+        const enList = Array.isArray((enRes as any)?.stories) ? (enRes as any).stories : [];
+        const deList = Array.isArray((deRes as any)?.stories) ? (deRes as any).stories : [];
+        await db.save('stories', enList, 'en');
+        await db.save('stories', deList, 'de');
+        setEnStoriesForAdmin(enList);
+        setDeStoriesForAdmin(deList);
+        setStories(learningLang === 'de' ? deList : enList);
+        // Notify the main site (same browser, different tab) via storage event
+        localStorage.setItem('keylang_stories_updated', Date.now().toString());
+    };
 
     const mergedStories = useMemo(() => {
         const en = (enStoriesForAdmin || []).map((s: Story) => ({ ...s, _lang: 'en', _langFlag: '🇺🇸' }));
@@ -297,8 +230,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             return true;
         };
         const isOfficialSystemFolder = (f: Folder & { userId?: string | null }) => {
-            if (!f.isSystem) return false;
             const uid = (f as any).userId;
+            // Any folder without a real user owner is considered an official/admin folder
             return !hasRealUserOwner(uid);
         };
         if (adminLang === 'en') {
@@ -333,7 +266,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             return true;
         };
         const isOfficialSystemCard = (c: Card & { userId?: string | null }) => {
-            if (!c.isSystem) return false;
             const uid = (c as any).userId;
             return !hasRealUserOwner(uid);
         };
@@ -365,6 +297,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [showStoryForm, setShowStoryForm] = useState(false);
     const [newStory, setNewStory] = useState<Partial<Story>>({ level: 'Beginner', image: '', tags: [] });
     const [newStoryLang, setNewStoryLang] = useState<'en' | 'de'>(() => (learningLang === 'de' ? 'de' : 'en'));
+    const [isUploadingStoryImage, setIsUploadingStoryImage] = useState(false);
+    const [storyImageUploadProgress, setStoryImageUploadProgress] = useState(0);
+    const [storyImageUploadFileName, setStoryImageUploadFileName] = useState<string | undefined>();
 
     const findMatchingStoryIdByTitle = (lang: 'en' | 'de', title: string): string | null => {
         const list = lang === 'de' ? deStoriesForAdmin : enStoriesForAdmin;
@@ -377,6 +312,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // --- ADVANCED THEME STATE ---
     // Auto Theme Logic
     const [isAutoTheme, setIsAutoTheme] = useState(false);
+    const themeSettingsLoadedRef = useRef(false);
+    const themeSettingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const themeSettingsErrorShownRef = useRef(false);
 
     useEffect(() => {
         if (isAutoTheme) {
@@ -439,24 +377,144 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setToastMessage({ text, type });
     };
 
+    useEffect(() => {
+        let cancelled = false;
+
+        const isTheme = (value: unknown): value is AppTheme =>
+            typeof value === 'string' && Object.prototype.hasOwnProperty.call(THEMES_DATA, value);
+
+        const isCustomConfig = (value: unknown): value is CustomThemeConfig => {
+            if (!value || typeof value !== 'object') return false;
+            const config = value as Partial<CustomThemeConfig>;
+            return (
+                typeof config.id === 'string' &&
+                typeof config.name === 'string' &&
+                typeof config.primary === 'string' &&
+                typeof config.secondary === 'string' &&
+                typeof config.accent === 'string'
+            );
+        };
+
+        void (async () => {
+            try {
+                const response: any = await AdminAPI.getThemeSettings();
+                const settings = response?.settings;
+                if (cancelled || !settings) return;
+
+                if (isTheme(settings.selectedTheme)) {
+                    setSelectedTheme(settings.selectedTheme);
+                }
+                if (Array.isArray(settings.themeSchedules)) {
+                    setThemeSchedules(settings.themeSchedules);
+                }
+                if (isCustomConfig(settings.customThemeConfig)) {
+                    setCustomThemeConfig(settings.customThemeConfig);
+                }
+                setIsAutoTheme(Boolean(settings.isAutoTheme));
+                if (typeof settings.isDarkMode === 'boolean' && settings.isDarkMode !== isDarkMode) {
+                    toggleTheme();
+                }
+            } catch (error) {
+                console.error('Failed to load theme settings:', error);
+            } finally {
+                if (!cancelled) {
+                    themeSettingsLoadedRef.current = true;
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [setCustomThemeConfig, setSelectedTheme, setThemeSchedules]);
+
+    useEffect(() => {
+        if (!themeSettingsLoadedRef.current) return;
+        if (themeSettingsSaveTimerRef.current) {
+            clearTimeout(themeSettingsSaveTimerRef.current);
+        }
+
+        themeSettingsSaveTimerRef.current = setTimeout(() => {
+            const settings = {
+                selectedTheme,
+                isAutoTheme,
+                isDarkMode,
+                themeSchedules,
+                customThemeConfig,
+            };
+
+            void AdminAPI.updateThemeSettings(settings)
+                .then(() => {
+                    themeSettingsErrorShownRef.current = false;
+                })
+                .catch((error) => {
+                    console.error('Failed to save theme settings:', error);
+                    if (!themeSettingsErrorShownRef.current) {
+                        showToast('تعذر حفظ إعدادات المظهر على الخادم.', 'error');
+                        themeSettingsErrorShownRef.current = true;
+                    }
+                });
+        }, 500);
+
+        return () => {
+            if (themeSettingsSaveTimerRef.current) {
+                clearTimeout(themeSettingsSaveTimerRef.current);
+            }
+        };
+    }, [customThemeConfig, isAutoTheme, isDarkMode, selectedTheme, themeSchedules]);
+
     // --- Handlers ---
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'image' | 'storyImage' | 'questionImage' | 'cardImage' | 'lessonImage' | 'dictImage') => {
         const file = e.target.files?.[0];
-        if (file) {
-            // Size check for localStorage performance
-            if (file.size > 2 * 1024 * 1024) {
-                showToast(t.admin.common.imageTooLarge, "error");
+        if (!file) return;
+
+        // ─── Story Image: upload via API, get back a real URL ───────────────────
+        if (field === 'storyImage') {
+            if (file.size > 10 * 1024 * 1024) {
+                showToast(t.admin.common.imageTooLarge, 'error');
                 return;
             }
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if (field === 'storyImage') setNewStory({ ...newStory, image: reader.result as string });
-                else if (field === 'questionImage') setNewQuestion({ ...newQuestion, image: reader.result as string });
-                else if (field === 'dictImage') setDictCard(prev => ({ ...prev, image: reader.result as string }));
-            };
-            reader.readAsDataURL(file);
+            setIsUploadingStoryImage(true);
+            setStoryImageUploadProgress(0);
+            setStoryImageUploadFileName(file.name);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('kind', 'image');
+            formData.append('context', 'curriculum');
+            AdminAPI.uploadMediaWithProgress(formData, setStoryImageUploadProgress)
+                .then(({ url }) => {
+                    setStoryImageUploadProgress(100);
+                    setNewStory(prev => ({ ...prev, image: url }));
+                    showToast('تم رفع الصورة بنجاح ✓', 'success');
+                    setTimeout(() => { setIsUploadingStoryImage(false); setStoryImageUploadProgress(0); }, 800);
+                })
+                .catch((err: any) => {
+                    const errMsg = typeof err?.message === 'string' ? err.message : '';
+                    console.warn('[Image Upload] API failed, falling back to Base64:', errMsg);
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        setNewStory(prev => ({ ...prev, image: reader.result as string }));
+                        showToast(`تحذير: الخادم لم يستجب (${errMsg.slice(0, 60)}). تم حفظ الصورة مؤقتاً.`, 'error');
+                    };
+                    reader.readAsDataURL(file);
+                    setIsUploadingStoryImage(false);
+                    setStoryImageUploadProgress(0);
+                });
+            return;
         }
+
+        // ─── Other fields: keep Base64 for local preview ────────────────────────
+        if (file.size > 2 * 1024 * 1024) {
+            showToast(t.admin.common.imageTooLarge, 'error');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (field === 'questionImage') setNewQuestion({ ...newQuestion, image: reader.result as string });
+            else if (field === 'dictImage') setDictCard(prev => ({ ...prev, image: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
     };
 
     // Audio/Video handlers moved to specific components
@@ -483,7 +541,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             estimatedReadingTime: newStory.estimatedReadingTime,
             difficulty: newStory.difficulty,
             tags: cleanedTags && cleanedTags.length > 0 ? cleanedTags : undefined,
-            viewCount: newStory.viewCount
+            viewCount: newStory.viewCount,
+            contentDirection: newStory.contentDirection || 'auto',
+            translationDirection: newStory.translationDirection || 'auto'
         };
 
         const targetLangs: Array<'en' | 'de'> = adminLang === 'both' ? ['en', 'de'] : [adminLang];
@@ -501,6 +561,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             difficulty: story.difficulty,
             tags: story.tags,
             viewCount: story.viewCount,
+            contentDirection: story.contentDirection,
+            translationDirection: story.translationDirection,
             isActive: true,
         };
 
@@ -526,13 +588,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 const langLabel = adminLang === 'both' ? 'EN + DE' : adminLang.toUpperCase();
                 showToast(newStory.id ? `${t.admin.stories.saveSuccessEdit} (${langLabel})` : `${t.admin.stories.saveSuccessNew} (${langLabel})`, 'success');
 
-                // reload both languages for admin merged view
-                const [enRes, deRes] = await Promise.all([AdminAPI.getStories('en'), AdminAPI.getStories('de')]);
-                const enStories = Array.isArray((enRes as any)?.stories) ? (enRes as any).stories : [];
-                const deStories = Array.isArray((deRes as any)?.stories) ? (deRes as any).stories : [];
-                await db.save('stories', enStories, 'en');
-                await db.save('stories', deStories, 'de');
-                setStories(learningLang === 'de' ? deStories : enStories);
+                // Refresh admin list + notify main site
+                await refreshAdminStories();
             } catch (e: any) {
                 showToast(e?.message || 'فشل حفظ القصة على الخادم. تأكد من تسجيل دخول المسئول.', 'error');
             }
@@ -554,11 +611,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setShowStoryForm(true);
     };
 
-    const handleDeleteStory = (id: string) => {
+    const handleDeleteStory = (story: Story) => {
         if (window.confirm(t.admin.stories.deleteConfirm)) {
-            const picked = (mergedStories as any[]).find((s) => s.id === id);
+            const id = story.id;
+            const picked = story as any;
             const targetLang = picked?._lang as ('en' | 'de' | undefined);
-            const lang = targetLang === 'de' ? 'de' : 'en';
+            const lang = targetLang === 'de' || targetLang === 'en'
+                ? targetLang
+                : adminLang === 'de'
+                    ? 'de'
+                    : 'en';
 
             void (async () => {
                 try {
@@ -573,14 +635,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         await AdminAPI.deleteStory(lang, id);
                     }
                     showToast(t.admin.stories.deleteSuccess, 'info');
-                    const [enRes, deRes] = await Promise.all([AdminAPI.getStories('en'), AdminAPI.getStories('de')]);
-                    const enStories = Array.isArray((enRes as any)?.stories) ? (enRes as any).stories : [];
-                    const deStories = Array.isArray((deRes as any)?.stories) ? (deRes as any).stories : [];
-                    await db.save('stories', enStories, 'en');
-                    await db.save('stories', deStories, 'de');
-                    setStories(learningLang === 'de' ? deStories : enStories);
-                } catch {
-                    showToast('فشل حذف القصة من الخادم', 'error');
+                    await refreshAdminStories();
+                } catch (err: any) {
+                    const detail = typeof err?.message === 'string' ? ` (${err.message.slice(0, 80)})` : '';
+                    console.error('[deleteStory] Failed:', err);
+                    showToast(`فشل حذف القصة من الخادم${detail}`, 'error');
                 }
             })();
         }
@@ -810,7 +869,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // --- NORMAL DASHBOARD VIEW ---
 
     return (
-        <div className="min-h-screen bg-[#0B0D17]/30 text-gray-100 font-sans selection:bg-red-500/30 selection:text-red-200" dir="rtl">
+        <div className="site-responsive-root admin-responsive-root min-h-screen bg-[#0B0D17]/30 text-gray-100 font-sans selection:bg-red-500/30 selection:text-red-200" dir="rtl">
             <Toast
                 message={toastMessage?.text || ""}
                 isVisible={!!toastMessage}
@@ -842,7 +901,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
 
             {/* Main Content */}
-            <main className="md:mr-72 p-6 md:p-10 relative z-10 min-h-screen">
+            <main className="md:mr-72 p-4 sm:p-5 md:p-6 xl:p-8 2xl:p-10 relative z-10 min-h-screen">
                 <AnimatePresence mode="wait">
                     {/* Overview Tab */}
                     {activeTab === 'overview' && (
@@ -902,6 +961,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <AdminSentencesView
                             topics={sentenceTopics}
                             setTopics={setSentenceTopics}
+                            t={t}
+                            adminLang={adminLang}
+                            learningLang={learningLang}
+                        />
+                    )}
+
+                    {/* Games Management */}
+                    {activeTab === 'games' && (
+                        <AdminGamesView
                             t={t}
                             adminLang={adminLang}
                             learningLang={learningLang}
@@ -977,8 +1045,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </div>
                                             <div className="flex items-center gap-5">
                                                 {card.frontImage ? (
-                                                    <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-white/10 shrink-0">
-                                                        <img src={card.frontImage} className="w-full h-full object-cover" alt="" />
+                                                    <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-white/10 shrink-0 relative bg-white/5">
+                                                        <img src={card.frontImage} className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-35" alt="" aria-hidden="true" />
+                                                        <img src={card.frontImage} className="relative z-[1] w-full h-full object-contain p-1" alt="" />
                                                     </div>
                                                 ) : (
                                                     <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center shrink-0 border border-white/5">
@@ -1182,7 +1251,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         onClick={() => (document.getElementById('dictImageInput') as HTMLInputElement)?.click()}
                                     >
                                         {dictCard.image ? (
-                                            <img src={dictCard.image} className="w-full h-full object-cover" alt="" />
+                                            <>
+                                                <img src={dictCard.image} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                                <img src={dictCard.image} className="relative z-[1] w-full h-full object-contain p-3" alt="" />
+                                            </>
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-600">
                                                 <ImageIcon size={32} className="mb-2" />
@@ -1303,6 +1375,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setStory={setNewStory}
                     onSave={handleSaveStory}
                     onImageUpload={(e) => handleImageUpload(e, 'storyImage')}
+                    isUploadingImage={isUploadingStoryImage}
+                    uploadProgress={storyImageUploadProgress}
+                    uploadFileName={storyImageUploadFileName}
                     storyLang={newStoryLang}
                     setStoryLang={setNewStoryLang}
                     t={t}

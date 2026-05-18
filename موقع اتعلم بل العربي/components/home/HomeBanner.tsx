@@ -8,6 +8,7 @@ interface HomeBannerProps {
     darkMode: boolean;
     userImage: string | null;
     userName: string;
+    isProSubscriber?: boolean;
     greeting: string;
     randomQuote: string;
     hijriDate: string;
@@ -58,11 +59,11 @@ export const HomeBanner: React.FC<HomeBannerProps> = ({
                 {/* Content Layer */}
                 <div className="relative z-10 w-full p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-10 text-white">
                     <div className="flex flex-col items-center md:items-start text-center md:text-right space-y-6 max-w-2xl">
-                        <div className={`inline-flex items-center gap-3 backdrop-blur-md px-4 py-2 rounded-full border shadow-lg transition-colors ${darkMode ? 'bg-white/10 border-white/20' : 'bg-white/20 border-white/40'}`}>
-                            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/50">
-                                {userImage ? <img src={userImage} className="w-full h-full object-cover" alt="User" /> : <Home size={16} />}
+                        <div className={`inline-flex items-center gap-2 sm:gap-3 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border shadow-lg transition-colors ${darkMode ? 'bg-white/10 border-white/20' : 'bg-white/20 border-white/40'}`}>
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden border-2 border-white/50">
+                                {userImage ? <img src={userImage} className="w-full h-full object-cover" alt="User" /> : <Home size={14} className="m-auto mt-0.5 sm:mt-1" />}
                             </div>
-                            <span className="font-bold text-sm tracking-wide text-white inline-flex items-center gap-2 flex-wrap justify-center">
+                            <span className="font-bold text-xs sm:text-sm tracking-wide text-white inline-flex items-center gap-2 flex-wrap justify-center">
                                 أهلاً بك، {userName}
                                 {isProSubscriber && (
                                     <span
@@ -81,24 +82,24 @@ export const HomeBanner: React.FC<HomeBannerProps> = ({
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ delay: 0.2 }}
-                                className="text-5xl md:text-7xl font-black tracking-tight drop-shadow-xl"
+                                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight drop-shadow-xl"
                             >
                                 {themeData.greeting}
                             </motion.h1>
-                            <p className="text-lg md:text-xl text-white/90 font-medium">{randomQuote}</p>
+                            <p className="text-base sm:text-lg md:text-xl text-white/90 font-medium">{randomQuote}</p>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-2">
-                            <div className={`px-5 py-2.5 rounded-2xl backdrop-blur-md border flex items-center gap-3 transition-colors ${darkMode ? 'bg-black/40 border-white/10 text-white' : 'bg-white/80 border-white/50 shadow-sm text-orange-900'}`}>
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-4 mt-2">
+                            <div className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-2xl backdrop-blur-md border flex items-center gap-2 sm:gap-3 transition-colors ${darkMode ? 'bg-black/40 border-white/10 text-white' : 'bg-white/80 border-white/50 shadow-sm text-orange-900'}`}>
                                 {darkMode ? (
-                                    <Moon className="text-amber-300" size={20} />
+                                    <Moon className="text-amber-300" size={18} />
                                 ) : (
-                                    <Sun className="text-orange-600 animate-[spin_10s_linear_infinite]" size={20} />
+                                    <Sun className="text-orange-600 animate-[spin_10s_linear_infinite]" size={18} />
                                 )}
-                                <span className="font-bold text-lg font-serif tracking-wide">{hijriDate}</span>
+                                <span className="font-bold text-sm sm:text-base md:text-lg font-serif tracking-wide">{hijriDate}</span>
                             </div>
-                            <div className={`px-4 py-2.5 rounded-2xl backdrop-blur-sm border transition-colors ${darkMode ? 'bg-white/10 border-white/10 text-white/95' : 'bg-white/40 border-white/30 text-white'}`}>
-                                <span className="font-medium text-sm">{gregorianDate}</span>
+                            <div className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl backdrop-blur-sm border transition-colors ${darkMode ? 'bg-white/10 border-white/10 text-white/95' : 'bg-white/40 border-white/30 text-white'}`}>
+                                <span className="font-medium text-xs sm:text-sm">{gregorianDate}</span>
                             </div>
                         </div>
                     </div>
@@ -135,29 +136,29 @@ export const HomeBanner: React.FC<HomeBannerProps> = ({
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="flex items-center gap-6">
                     <div className="relative">
-                        <div className="w-24 h-24 md:w-28 md:h-28 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-4 border-white/20 shadow-xl overflow-hidden">
+                        <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 lg:w-32 lg:h-32 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-4 border-white/20 shadow-xl overflow-hidden">
                             {userImage ? (
                                 <img src={userImage} alt={userName} className="w-full h-full object-cover" />
                             ) : (
-                                <Home size={40} className="text-white" />
+                                <Home size={32} className="text-white sm:w-10 sm:h-10" />
                             )}
                         </div>
-                        <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full border-4 border-white/20 flex items-center justify-center" style={{ backgroundColor: darkMode ? '#4ade80' : '#fbbf24' }}>
+                        <div className="absolute bottom-0 right-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full border-4 border-white/20 flex items-center justify-center" style={{ backgroundColor: darkMode ? '#4ade80' : '#fbbf24' }}>
                             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                         </div>
                     </div>
 
                     <div className="text-center md:text-right">
-                        <div className="flex items-center justify-center md:justify-start gap-3 mb-2 opacity-95">
+                        <div className="flex items-center justify-center md:justify-start gap-2 sm:gap-3 mb-1 sm:mb-2 opacity-95">
                             {darkMode ? (
-                                <Moon size={28} className="text-blue-200 fill-blue-200/20" />
+                                <Moon size={24} className="text-blue-200 fill-blue-200/20 sm:w-7 sm:h-7" />
                             ) : (
-                                <Sun size={28} className="text-yellow-100 fill-yellow-100/40 animate-rotate-slow" />
+                                <Sun size={24} className="text-yellow-100 fill-yellow-100/40 animate-rotate-slow sm:w-7 sm:h-7" />
                             )}
-                            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{greeting}</h2>
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{greeting}</h2>
                         </div>
                         <div className="flex items-center justify-center md:justify-start gap-2 md:gap-3 flex-wrap">
-                            <p className="text-3xl md:text-4xl font-black tracking-tight">{userName}</p>
+                            <p className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">{userName}</p>
                             {isProSubscriber && (
                                 <span
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black tracking-wider bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 shadow-lg border border-amber-200/70 ring-1 ring-amber-400/30"
@@ -169,21 +170,21 @@ export const HomeBanner: React.FC<HomeBannerProps> = ({
                             )}
                         </div>
 
-                        <div className="flex items-center gap-3 mt-3 text-white/90">
-                            <Clock size={16} />
-                            <span className="font-medium text-lg font-serif">{hijriDate}</span>
+                        <div className="flex items-center justify-center md:justify-start gap-2 sm:gap-3 mt-2 sm:mt-3 text-white/90">
+                            <Clock size={14} className="sm:w-4 sm:h-4" />
+                            <span className="font-medium text-sm sm:text-base md:text-lg font-serif">{hijriDate}</span>
                             <span className="w-1 h-1 bg-white/60 rounded-full" />
-                            <span className="text-sm opacity-90">{gregorianDate}</span>
+                            <span className="text-xs sm:text-sm opacity-90">{gregorianDate}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-white/10 max-w-md w-full text-center md:text-right shadow-lg transform group-hover:-translate-y-1 transition-transform duration-500">
-                    <div className="flex justify-between items-start mb-4">
-                        <Flame className="text-amber-300" size={32} />
-                            <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full">{dailyWisdomLabel}</span>
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-5 sm:p-6 md:p-8 border border-white/10 max-w-md w-full text-center md:text-right shadow-lg transform group-hover:-translate-y-1 transition-transform duration-500">
+                    <div className="flex justify-between items-start mb-3 sm:mb-4">
+                        <Flame className="text-amber-300 w-6 h-6 sm:w-8 sm:h-8" />
+                        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-white/20 px-2.5 sm:px-3 py-1 rounded-full">{dailyWisdomLabel}</span>
                     </div>
-                    <p className="text-xl md:text-2xl font-bold leading-relaxed">"{randomQuote}"</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-bold leading-relaxed">"{randomQuote}"</p>
                 </div>
             </div>
         </motion.div>

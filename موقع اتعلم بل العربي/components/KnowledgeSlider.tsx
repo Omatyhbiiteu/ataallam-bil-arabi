@@ -142,30 +142,34 @@ export const KnowledgeSlider: React.FC<KnowledgeSliderProps> = ({ selectedTheme,
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.5 }}
-                    className={`bg-gradient-to-l ${activeGradient} px-5 py-4 flex items-center gap-4`}
+                    className={`bg-gradient-to-l ${activeGradient} px-5 py-6 md:px-8 md:py-7 flex flex-col sm:flex-row items-center sm:items-stretch gap-4 md:gap-6 relative overflow-hidden`}
                 >
+                    {/* Pattern Overlay */}
+                    <div className="absolute inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+                    <div className="absolute -right-16 -top-16 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+
                     {/* Icon */}
-                    <div className="shrink-0 w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center border border-white/20">
-                        <Icon size={20} className="text-white" />
+                    <div className="relative shrink-0 w-12 h-12 md:w-14 md:h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] backdrop-blur-md self-start sm:self-center">
+                        <Icon size={26} className="text-white drop-shadow-lg md:scale-110" />
                     </div>
 
                     {/* Text */}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 z-10 flex flex-col justify-center w-full">
                         <p
-                            className="text-white font-bold text-sm md:text-base leading-snug truncate"
-                            style={{ fontFamily: '"Traditional Arabic", "Amiri", serif' }}
+                            className="text-white font-bold text-base md:text-lg lg:text-xl leading-relaxed md:leading-loose line-clamp-3 md:line-clamp-2 drop-shadow-sm"
+                            style={{ fontFamily: '"Amiri", "Tajawal", "Inter", "Segoe UI", sans-serif' }}
                         >
                             "{slide.text}"
                         </p>
-                        <span className="text-white/60 text-[10px] font-bold tracking-widest uppercase mt-0.5 block">
+                        <span className="text-white/70 text-[11px] md:text-xs font-bold tracking-widest uppercase mt-1 md:mt-1.5 block drop-shadow-sm">
                             {slide.source}
                         </span>
                     </div>
 
                     {/* Actions */}
-                    <div className="shrink-0 flex items-center gap-2">
+                    <div className="shrink-0 flex items-center justify-between sm:justify-end gap-2 md:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-white/10">
                         {/* Slide dots */}
-                        <div className="hidden sm:flex items-center gap-1 ml-2">
+                        <div className="flex sm:hidden md:flex items-center gap-1.5 ml-1 md:ml-3">
                             {KNOWLEDGE_SLIDES.map((_, idx) => (
                                 <button
                                     key={idx}
@@ -181,14 +185,14 @@ export const KnowledgeSlider: React.FC<KnowledgeSliderProps> = ({ selectedTheme,
                         {/* Prev / Next */}
                         <button
                             onClick={() => setCurrentSlide(p => (p - 1 + KNOWLEDGE_SLIDES.length) % KNOWLEDGE_SLIDES.length)}
-                            className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition border border-white/10"
+                            className="p-2 bg-white/10 hover:bg-white/25 rounded-full transition-all border border-white/10 shadow-sm"
                             aria-label="السابق"
                         >
                             <ArrowRight size={14} className="text-white" />
                         </button>
                         <button
                             onClick={() => setCurrentSlide(p => (p + 1) % KNOWLEDGE_SLIDES.length)}
-                            className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition border border-white/10"
+                            className="p-2 bg-white/10 hover:bg-white/25 rounded-full transition-all border border-white/10 shadow-sm"
                             aria-label="التالي"
                         >
                             <ArrowLeft size={14} className="text-white" />
@@ -197,7 +201,7 @@ export const KnowledgeSlider: React.FC<KnowledgeSliderProps> = ({ selectedTheme,
                         {/* Copy */}
                         <button
                             onClick={handleCopy}
-                            className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition border border-white/10"
+                            className="p-2 bg-white/10 hover:bg-white/25 rounded-full transition-all border border-white/10 shadow-sm"
                             aria-label="نسخ"
                         >
                             {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} className="text-white" />}
@@ -206,7 +210,7 @@ export const KnowledgeSlider: React.FC<KnowledgeSliderProps> = ({ selectedTheme,
                         {/* Share */}
                         <button
                             onClick={handleShare}
-                            className="hidden sm:flex p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition border border-white/10 items-center gap-1"
+                            className="flex p-2 bg-white/10 hover:bg-white/25 rounded-full transition-all border border-white/10 shadow-sm items-center gap-1"
                             aria-label="مشاركة"
                         >
                             <Share2 size={14} className="text-white" />
@@ -216,7 +220,7 @@ export const KnowledgeSlider: React.FC<KnowledgeSliderProps> = ({ selectedTheme,
                         {onStartSession && (
                             <button
                                 onClick={onStartSession}
-                                className="hidden md:flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-black px-3 py-1.5 rounded-xl transition border border-white/20 ml-1"
+                                className="hidden md:flex items-center gap-1.5 bg-white/20 hover:bg-white/35 text-white text-xs font-black px-4 py-2 rounded-full transition-all shadow-md border border-white/30 ml-1"
                             >
                                 ابدأ المراجعة
                                 <ArrowLeft size={12} />

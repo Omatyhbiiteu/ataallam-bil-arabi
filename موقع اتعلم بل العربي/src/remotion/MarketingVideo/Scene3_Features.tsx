@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
 import { Brain, BookOpen, Mic, Zap, Globe } from 'lucide-react';
 
 const features = [
@@ -41,8 +41,8 @@ const features = [
     },
     {
         icon: Globe,
-        title: 'قصص تفاعلية +12 لغة',
-        desc: 'استمع وافهم سياق حقيقي بإمكانك تطبيقه فوراً.',
+        title: 'قصص للإنجليزي والألماني',
+        desc: 'استمع وافهم سياقاً حقيقياً بإمكانك تطبيقه فوراً.',
         accent: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
         accentRaw: '#06b6d4',
         glow: 'rgba(6,182,212,0.25)',
@@ -202,14 +202,12 @@ export const Features = () => {
         <AbsoluteFill
             style={{
                 backgroundColor: '#07070d',
-                fontFamily: 'Cairo, system-ui, sans-serif',
+                fontFamily: 'var(--font-arabic), system-ui, sans-serif',
                 color: '#f8fafc',
                 direction: 'rtl',
                 overflow: 'hidden',
             }}
         >
-            <Audio src={staticFile('audio/scene3.mp3')} volume={1} />
-
             <div style={{ position: 'absolute', width: '55%', height: '55%', right: '-8%', top: '-15%', background: 'radial-gradient(circle, rgba(245,158,11,0.18) 0%, transparent 65%)', filter: 'blur(90px)', transform: `scale(${pulse})` }} />
             <div style={{ position: 'absolute', width: '45%', height: '45%', left: '-8%', bottom: '-12%', background: 'radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 65%)', filter: 'blur(90px)' }} />
             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.028) 0px, rgba(255,255,255,0.028) 1px, transparent 1px, transparent 110px)' }} />

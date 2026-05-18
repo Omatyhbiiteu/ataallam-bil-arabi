@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
+use App\Models\LessonRating;
 use App\Models\Story;
 use App\Models\User;
 use Carbon\Carbon;
@@ -51,6 +52,7 @@ class AdminAnalyticsController extends Controller
         $retention = $this->buildRetentionSeries();
         $topStories = $this->buildTopStories(clone $storyBase);
         $difficultQuestions = $this->buildDifficultQuestions(clone $storyBase);
+        $lessonRatings = $this->buildLessonRatings($lang);
 
         $prevWeekUsers = User::query()->where('created_at', '<', now()->subDays(7))->count();
         $totalTrend = $prevWeekUsers > 0
@@ -96,12 +98,147 @@ class AdminAnalyticsController extends Controller
             'retention' => $retention,
             'topStories' => $topStories,
             'difficultQuestions' => $difficultQuestions,
+            'lessonRatings' => $lessonRatings,
             'meta' => [
                 'completionNote' => 'معدل الإكمال هنا = نسبة المستخدمين الذين حدّثوا ملفهم خلال 7 أيام (تقريب تفاعل).',
                 'difficultNote' => 'نقاط الصعوبة من إجابات المستخدمين المسجّلين على أسئلة القصص (نسبة الخطأ = إجابات خاطئة / إجمالي المحاولات).',
                 'lang' => $lang ?? 'all',
             ],
         ]);
+    }
+
+    private function buildLessonRatings(?string $lang): array
+    {
+        $query = LessonRating::query();
+        if (in_array($lang, ['en', 'de'], true)) {
+            $query->where('lang', $lang);
+        }
+
+        $totalRatings = (int) (clone $query)->count();
+        $averageRating = $totalRatings > 0
+            ? round((float) (clone $query)->avg('rating'), 2)
+            : 0.0;
+
+        $rows = (clone $query)
+            ->selectRaw('
+                lang,
+                lesson_id,
+                MAX(lesson_title) as lesson_title,
+                MAX(module_id) as module_id,
+                MAX(module_title) as module_title,
+                COUNT(*) as ratings_count,
+                AVG(rating) as average_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
+            ')
+            ->groupBy('lang', 'lesson_id')
+            ->orderByDesc('ratings_count')
+            ->orderByDesc('average_rating')
+            ->limit(120)
+            ->get();
+
+        $lessons = $rows->map(function ($row) {
+            $average = round((float) $row->average_rating, 2);
+            $count = (int) $row->ratings_count;
+
+            return [
+                'lang' => (string) $row->lang,
+                'lessonId' => (string) $row->lesson_id,
+                'lessonTitle' => (string) $row->lesson_title,
+                'moduleId' => $row->module_id ? (string) $row->module_id : null,
+                'moduleTitle' => $row->module_title ? (string) $row->module_title : null,
+                'averageRating' => $average,
+                'ratingsCount' => $count,
+                'distribution' => [
+                    '5' => (int) $row->stars_5,
+                    '4' => (int) $row->stars_4,
+                    '3' => (int) $row->stars_3,
+                    '2' => (int) $row->stars_2,
+                    '1' => (int) $row->stars_1,
+                ],
+                'satisfaction' => $this->satisfactionFor($average, $count),
+            ];
+        })->values();
+
+        $rankable = $lessons->filter(fn (array $lesson) => $lesson['ratingsCount'] >= 5);
+        $candidates = $rankable->isNotEmpty() ? $rankable : $lessons;
+        $best = $candidates
+            ->sort(fn (array $a, array $b) => [$b['averageRating'], $b['ratingsCount']] <=> [$a['averageRating'], $a['ratingsCount']])
+            ->first();
+        $lowest = $candidates
+            ->sort(fn (array $a, array $b) => [$a['averageRating'], -$a['ratingsCount']] <=> [$b['averageRating'], -$b['ratingsCount']])
+            ->first();
+
+        return [
+            'overview' => [
+                'totalRatings' => $totalRatings,
+                'ratedLessons' => $rows->count(),
+                'averageRating' => $averageRating,
+                'satisfaction' => $this->satisfactionFor($averageRating, $totalRatings),
+                'bestLesson' => $best ?: null,
+                'lowestLesson' => $lowest ?: null,
+                'minimumReliableRatings' => 5,
+            ],
+            'lessons' => $lessons->all(),
+        ];
+    }
+
+    private function satisfactionFor(float $average, int $count): array
+    {
+        if ($count < 5) {
+            return [
+                'status' => 'insufficient',
+                'label' => 'بيانات غير كافية',
+                'color' => 'gray',
+                'description' => 'انتظر المزيد من التقييمات قبل الحكم على جودة الدرس.',
+            ];
+        }
+
+        if ($average >= 4.5) {
+            return [
+                'status' => 'excellent',
+                'label' => 'ممتاز',
+                'color' => 'green',
+                'description' => 'رد فعل الطلاب قوي جدا. الدرس واضح ومحبوب.',
+            ];
+        }
+
+        if ($average >= 4) {
+            return [
+                'status' => 'very_good',
+                'label' => 'جيد جدا',
+                'color' => 'emerald',
+                'description' => 'رد الفعل إيجابي. الدرس يعمل بشكل جيد.',
+            ];
+        }
+
+        if ($average >= 3) {
+            return [
+                'status' => 'average',
+                'label' => 'متوسط',
+                'color' => 'amber',
+                'description' => 'الدرس مقبول، لكن يستحق مراجعة الشرح أو الأمثلة.',
+            ];
+        }
+
+        if ($average >= 2) {
+            return [
+                'status' => 'weak',
+                'label' => 'ضعيف',
+                'color' => 'orange',
+                'description' => 'يوجد عدم رضا واضح. راجع بنية الدرس والاختبار.',
+            ];
+        }
+
+        return [
+            'status' => 'very_bad',
+            'label' => 'سيئ جدا',
+            'color' => 'red',
+            'description' => 'الدرس يحتاج مراجعة عاجلة من المحتوى إلى طريقة العرض.',
+        ];
     }
 
     private function formatTrendPercent(float $pct): string

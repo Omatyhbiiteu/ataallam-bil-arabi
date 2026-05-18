@@ -6,7 +6,12 @@
  */
 
 // الرابط الأساسي للـ API (يُفضل وضعه في ملف .env)
-const BASE_URL = import.meta.env.VITE_BACKEND_API_URL || "http://localhost:5000/api";
+// Development uses `/api` so Vite can proxy requests and avoid CORS/port mistakes.
+// Production can set VITE_BACKEND_API_URL to a full URL such as https://domain.com/api.
+const BASE_URL = (
+    import.meta.env.VITE_BACKEND_API_URL ||
+    (import.meta.env.DEV ? "/api" : "http://127.0.0.1:5000/api")
+).replace(/\/$/, "");
 
 /** مسارات لوحة المسئول تحتاج توكن المسئول فقط — وإلا يُرفض الحفظ (403) إذا وُجد auth_token للمستخدم. */
 function getAuthTokenForEndpoint(endpoint: string): string | null {
@@ -71,7 +76,13 @@ export async function fetchApi(
                 const parts = Object.values(errorData.errors).flat() as string[];
                 msg = parts.filter(Boolean).join(" ");
             }
-            throw new Error(msg || "حدث خطأ غير معروف");
+            const error = new Error(msg || "حدث خطأ غير معروف") as Error & {
+                status?: number;
+                data?: unknown;
+            };
+            error.status = response.status;
+            error.data = errorData;
+            throw error;
         }
 
         // بعض الطلبات قد لا تعيد JSON (مثل حذف بدون محتوى 204)
@@ -119,6 +130,8 @@ export const AuthAPI = {
 export const SettingsAPI = {
     /** عام للمستخدمين (بدون توكن) */
     getLanguageAvailability: () => fetchApi("/settings/language-availability"),
+    /** Public theme settings controlled by the admin dashboard. */
+    getThemeSettings: () => fetchApi("/settings/theme"),
 };
 
 // ----------------------------------------------------
@@ -152,6 +165,19 @@ export const UserAPI = {
     readAllNotifications: () => fetchApi("/user/notifications/read-all", { method: "PUT" })
 };
 
+export const LessonRatingsAPI = {
+    getMine: (lang: "en" | "de") => fetchApi(`/user/lesson-ratings?lang=${encodeURIComponent(lang)}`),
+    save: (body: {
+        lang: "en" | "de";
+        lessonId: string;
+        rating: number;
+        lessonTitle?: string;
+        moduleId?: string | null;
+        moduleTitle?: string | null;
+    }) =>
+        fetchApi("/user/lesson-ratings", { method: "POST", body: JSON.stringify(body) }),
+};
+
 // ----------------------------------------------------
 // 3. Folders & Cards (المجلدات والبطاقات)
 // ----------------------------------------------------
@@ -183,7 +209,7 @@ export const UserContentAPI = {
         fetchApi(`/user/content/${lang}/folders-all-mine`, { method: "DELETE" }),
     createCard: (
         lang: string,
-        body: { folderId: string; frontText: string; backText: string; frontImage?: string | null }
+        body: { folderId: string; frontText: string; backText: string; frontImage?: string | null; frontImageFit?: 'wide' | 'portrait' | null }
     ) =>
         fetchApi(`/user/content/${lang}/cards`, {
             method: "POST",
@@ -194,6 +220,16 @@ export const UserContentAPI = {
         fetchApi(`/user/content/${lang}/cards/${cardId}`, { method: "PUT", body: JSON.stringify(body) }),
     deleteCard: (lang: string, cardId: string) =>
         fetchApi(`/user/content/${lang}/cards/${cardId}`, { method: "DELETE" }),
+};
+
+export const CardImageAssetAPI = {
+    search: (lang: "en" | "de", q: string) =>
+        fetchApi(`/user/card-image-assets/search?lang=${encodeURIComponent(lang)}&q=${encodeURIComponent(q)}`),
+    use: (lang: "en" | "de", assetId: string) =>
+        fetchApi(`/user/card-image-assets/${encodeURIComponent(assetId)}/use`, {
+            method: "POST",
+            body: JSON.stringify({ lang }),
+        }),
 };
 
 // ----------------------------------------------------
@@ -220,7 +256,21 @@ export const SentencesAPI = {
 };
 
 // ----------------------------------------------------
-// 7. AI Services (الذكاء الاصطناعي)
+// 7. Games (الألعاب)
+// ----------------------------------------------------
+export const GamesAPI = {
+    getAll: (lang: string) => fetchApi(`/content/${lang}/games`),
+    getUsage: () => fetchApi('/user/games/usage'),
+    start: (gameId: string) => fetchApi(`/user/games/${encodeURIComponent(gameId)}/start`, { method: 'POST' }),
+    complete: (attemptId: string, answers: Array<{ questionId: string; answer: string | string[] }>) =>
+        fetchApi(`/user/games/attempts/${encodeURIComponent(attemptId)}/complete`, {
+            method: 'POST',
+            body: JSON.stringify({ answers }),
+        }),
+};
+
+// ----------------------------------------------------
+// 8. AI Services (الذكاء الاصطناعي)
 // ----------------------------------------------------
 export const AiAPI = {
     chat: (body: any) => fetchApi("/ai/chat", { method: "POST", body: JSON.stringify(body) }),
@@ -231,14 +281,14 @@ export const AiAPI = {
 };
 
 // ----------------------------------------------------
-// 8. Text-to-Speech (TTS - النطق)
+// 9. Text-to-Speech (TTS - النطق)
 // ----------------------------------------------------
 export const AudioAPI = {
     generateSpeech: (body: any) => fetchApi("/tts/generate", { method: "POST", body: JSON.stringify(body) }),
 };
 
 // ----------------------------------------------------
-// 9. Marketing (التسويق)
+// 10. Marketing (التسويق)
 // ----------------------------------------------------
 export const MarketingAPI = {
     getCoupons: () => fetchApi("/marketing/coupons"),
@@ -248,7 +298,7 @@ export const MarketingAPI = {
 };
 
 // ----------------------------------------------------
-// 10. Support Tickets (تذاكر الدعم)
+// 11. Support Tickets (تذاكر الدعم)
 // ----------------------------------------------------
 export const SupportAPI = {
     getTickets: () => fetchApi("/support/tickets"),
@@ -258,7 +308,7 @@ export const SupportAPI = {
 };
 
 // ----------------------------------------------------
-// 11. Payments (المدفوعات)
+// 12. Payments (المدفوعات)
 // ----------------------------------------------------
 export const PaymentsAPI = {
     getSubscription: () => fetchApi("/user/subscription"),
@@ -294,6 +344,11 @@ export const AdminAPI = {
     createSentenceTopic: (lang: string, data: any) => fetchApi(`/admin/content/${lang}/sentences`, { method: "POST", body: JSON.stringify(data) }),
     updateSentenceTopic: (lang: string, id: string, data: any) => fetchApi(`/admin/content/${lang}/sentences/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteSentenceTopic: (lang: string, id: string) => fetchApi(`/admin/content/${lang}/sentences/${id}`, { method: "DELETE" }),
+
+    getGames: (lang: string) => fetchApi(`/admin/content/${lang}/games`),
+    createGame: (lang: string, data: any) => fetchApi(`/admin/content/${lang}/games`, { method: "POST", body: JSON.stringify(data) }),
+    updateGame: (lang: string, id: string, data: any) => fetchApi(`/admin/content/${lang}/games/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteGame: (lang: string, id: string) => fetchApi(`/admin/content/${lang}/games/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
     // Marketing Mgmt
     createCoupon: (data: any) => fetchApi("/admin/coupons", { method: "POST", body: JSON.stringify(data) }),
@@ -333,6 +388,9 @@ export const AdminAPI = {
     },
 
     // Themes Setting
+    getThemeSettings: () => fetchApi("/admin/settings/theme"),
+    updateThemeSettings: (settings: unknown) =>
+        fetchApi("/admin/settings/theme", { method: "PUT", body: JSON.stringify({ settings }) }),
     getThemeSchedules: () => fetchApi("/admin/themes/schedules"),
     updateThemeSchedule: (id: string, data: any) => fetchApi(`/admin/themes/schedules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     getCustomTheme: () => fetchApi("/admin/themes/custom"),

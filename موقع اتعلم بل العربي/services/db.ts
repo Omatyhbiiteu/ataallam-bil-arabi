@@ -8,6 +8,23 @@ import { auth } from './firebase';
 // 2. If logged in, syncs changes to Firestore in the background.
 
 const PREFIX = 'hcard_';
+const STORAGE_VERSION_KEY = `${PREFIX}storage_version`;
+const STORAGE_VERSION = 'clean-db-2026-05-17-v1';
+
+function clearStaleLocalCache(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem(STORAGE_VERSION_KEY) === STORAGE_VERSION) return;
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(PREFIX) && key !== STORAGE_VERSION_KEY)
+      .forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem(STORAGE_VERSION_KEY, STORAGE_VERSION);
+  } catch (e) {
+    console.warn('Local cache reset skipped:', e);
+  }
+}
+
+clearStaleLocalCache();
 
 /** نطاق تخزين التقدّم: لكل مستخدم ولغة تعلّم — يمنع مشاركة القصص/البطاقات بين حسابات على نفس الجهاز */
 export function progressStorageScope(userId: string | undefined, lang: 'en' | 'de'): string {
@@ -75,7 +92,10 @@ export const db = {
       // 1. Local Save
       if (typeof window !== 'undefined') {
         const serialized = JSON.stringify(data);
-        localStorage.setItem(PREFIX + finalKey, serialized);
+        const storageKey = PREFIX + finalKey;
+        if (localStorage.getItem(storageKey) !== serialized) {
+          localStorage.setItem(storageKey, serialized);
+        }
       }
 
       // 2. Cloud Sync — لا ننتظرها؛ كانت await setDoc تعلّق «جاري الحفظ» عند بطء/تعطل Firebase

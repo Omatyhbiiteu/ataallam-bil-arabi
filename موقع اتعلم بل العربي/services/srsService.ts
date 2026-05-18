@@ -1,69 +1,109 @@
 
 import { Card, SRSGrade } from '../types';
 
-// Multipliers in minutes
+// ─────────────────────────────────────────────────────────────────
+// Improved SRS Algorithm — KeyLang v2
+// Based on SM-2 with practical UX enhancements
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * First-cycle intervals in minutes.
+ * The app is built for fast daily practice, so new/learning cards should come
+ * back inside the same study day instead of disappearing for several days.
+ */
 const INTERVALS = {
-  AGAIN: 0,     // Immediate retry
-  HARD: 5,      // 5 minutes
-  GOOD: 1440,   // 1 day (24 hours)
-  EASY: 10080,  // 7 days
+  AGAIN: 0,   // immediate repeat in the same session
+  HARD:  5,   // short delay, then re-test
+  GOOD:  30,  // understood, but still same-day confirmation
+  EASY:  60,  // strong understanding, one-hour confirmation
 };
 
-// Advanced: Add "Fuzz" factor to prevent cards reviewed together from always sticking together
-// We add/subtract up to 5% variance to the interval
+// Add ±5% "fuzz" so cards reviewed together don't always cluster back together
 const applyFuzz = (interval: number): number => {
-  if (interval <= 5) return interval; // Don't fuzz very short intervals
-  const fuzzFactor = 0.05; // 5%
-  const variance = interval * fuzzFactor * (Math.random() - 0.5); // Random between -2.5% and +2.5%
+  if (interval <= 5) return interval;
+  const variance = interval * 0.05 * (Math.random() - 0.5);
   return Math.round(interval + variance);
+};
+
+const getBaseIntervalAndStatus = (card: Card, grade: SRSGrade): { baseInterval: number; newStatus: Card['status'] } => {
+  let baseInterval = card.interval;
+  let newStatus = card.status;
+
+  // ── 1. Base Interval & Status ──────────────────────────────────
+
+  if (grade === SRSGrade.AGAIN) {
+    baseInterval = 0;
+    newStatus = 'learning';
+
+  } else if (grade === SRSGrade.HARD) {
+    baseInterval = INTERVALS.HARD;
+    newStatus = 'learning';
+
+  } else if (grade === SRSGrade.GOOD) {
+    // First time through: 30 minutes. Already-reviewed cards grow with ease.
+    baseInterval = card.status === 'review' || card.status === 'mastered'
+      ? Math.max(INTERVALS.GOOD, Math.round((card.interval || INTERVALS.GOOD) * card.easeFactor))
+      : INTERVALS.GOOD;
+    newStatus = 'review';
+
+  } else if (grade === SRSGrade.EASY) {
+    if (card.status === 'review' || card.status === 'mastered') {
+      baseInterval = Math.max(
+        INTERVALS.EASY,
+        Math.round((card.interval || INTERVALS.EASY) * card.easeFactor * 1.3)
+      );
+      newStatus = 'mastered';
+    } else {
+      baseInterval = INTERVALS.EASY;
+      newStatus = 'review';
+    }
+  }
+
+  return { baseInterval, newStatus };
+};
+
+export const getNextReviewIntervalMinutes = (card: Card, grade: SRSGrade): number => {
+  return getBaseIntervalAndStatus(card, grade).baseInterval;
+};
+
+export const formatReviewIntervalLabel = (minutes: number): string => {
+  if (minutes <= 0) return '<1m';
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+
+  const days = Math.round(hours / 24);
+  return `${days}d`;
 };
 
 export const calculateNextReview = (card: Card, grade: SRSGrade): Partial<Card> => {
   const now = Date.now();
-  let baseInterval = card.interval;
-  let newStatus = card.status;
+  const { baseInterval, newStatus } = getBaseIntervalAndStatus(card, grade);
 
-  // 1. Determine Base Interval based on Grade
-  if (grade === SRSGrade.AGAIN) {
-    baseInterval = 0;
-    newStatus = 'learning';
-  } else if (grade === SRSGrade.HARD) {
-    baseInterval = INTERVALS.HARD;
-    newStatus = 'learning';
-  } else if (grade === SRSGrade.GOOD) {
-    // If it was already in review, multiply interval (Simple exponential growth)
-    // If new, set to base GOOD interval
-    baseInterval = card.status === 'review'
-      ? Math.max(INTERVALS.GOOD, Math.round(card.interval * card.easeFactor))
-      : INTERVALS.GOOD;
-    newStatus = 'review';
-  } else if (grade === SRSGrade.EASY) {
-    baseInterval = card.status === 'review' || card.status === 'mastered'
-      ? Math.max(INTERVALS.EASY, Math.round(card.interval * card.easeFactor * 1.3)) // Bonus multiplier for Easy
-      : INTERVALS.EASY;
-    newStatus = 'mastered';
-  }
-
-  // 2. Apply Fuzzing (Algorithmic Improvement)
+  // ── 2. Fuzz (prevents clustering) ─────────────────────────────
   const finalInterval = applyFuzz(baseInterval);
 
-  // 3. Calculate Ease Factor Adjustments (Anki-style)
-  // Decrease ease if hard, increase if easy, stay same if good
+  // ── 3. Ease Factor — SM-2 style ────────────────────────────────
   let newEase = card.easeFactor;
-  if (grade === SRSGrade.HARD) newEase = Math.max(1.3, newEase - 0.15); // Minimum 1.3 (SM-2 standard)
-  if (grade === SRSGrade.EASY) newEase += 0.15;
+  if (grade === SRSGrade.HARD) newEase = Math.max(1.3, newEase - 0.15);
+  if (grade === SRSGrade.GOOD) newEase = Math.max(1.3, Math.min(4.0, newEase));       // clamp
+  if (grade === SRSGrade.EASY) newEase = Math.min(4.0, newEase + 0.15);               // cap at 4.0
 
-  // 4. Calculate Absolute Timestamp
-  // interval is in minutes, so * 60 * 1000
-  const nextReviewDate = now + (finalInterval * 60 * 1000);
+  // ── 4. Next review timestamp ───────────────────────────────────
+  const nextReviewDate = now + finalInterval * 60 * 1000;
 
   return {
     nextReview: nextReviewDate,
     interval: finalInterval,
     reviews: card.reviews + 1,
-    easeFactor: parseFloat(newEase.toFixed(2)), // Clean float
+    easeFactor: parseFloat(newEase.toFixed(2)),
     status: newStatus,
     lastGrade: grade,
-    dueTimeInSession: grade === SRSGrade.EASY ? undefined : nextReviewDate
+    // Only AGAIN/HARD can reappear inside the current session.
+    dueTimeInSession:
+      grade === SRSGrade.AGAIN ? now :
+      grade === SRSGrade.HARD ? nextReviewDate :
+      undefined,
   };
 };

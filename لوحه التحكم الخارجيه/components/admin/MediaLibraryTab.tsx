@@ -5,6 +5,7 @@ import {
     FileVideo, Music, Search, Grid, List as ListIcon, AlertTriangle
 } from 'lucide-react';
 import { MediaItem } from '../../types';
+import { AdminAPI } from '../../services/apiClient';
 
 /* 
 ========================================================================================
@@ -37,12 +38,45 @@ interface MediaLibraryTabProps {
     setMediaItems: (items: MediaItem[]) => void;
 }
 
+type MediaFilter = 'all' | 'image' | 'video' | 'audio';
+type UploadKind = MediaItem['type'];
+
+const MEDIA_ACCEPT =
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/aac,audio/x-m4a,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.ogg,.mp3,.wav,.m4a,.aac';
+
+const getFileKind = (file: File): UploadKind | null => {
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'video';
+    if (file.type.startsWith('audio/')) return 'audio';
+
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (!ext) return null;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
+    if (['mp4', 'webm'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'm4a', 'aac'].includes(ext)) return 'audio';
+    return null;
+};
+
+const getMaxFileSize = (kind: UploadKind) => {
+    if (kind === 'image') return 5 * 1024 * 1024;
+    if (kind === 'video') return 100 * 1024 * 1024;
+    return 20 * 1024 * 1024;
+};
+
+const getMaxFileSizeLabel = (kind: UploadKind) => {
+    if (kind === 'image') return '5 ميجابايت';
+    if (kind === 'video') return '100 ميجابايت';
+    return '20 ميجابايت';
+};
+
 export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, setMediaItems }) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-    const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all');
+    const [filterType, setFilterType] = useState<MediaFilter>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Filter Items
@@ -52,32 +86,83 @@ export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, se
         return matchesType && matchesSearch;
     });
 
-    // Handle File Upload (Mock Simulation)
-    const handleFileUpload = (files: FileList | null) => {
+    const handleFileUpload = async (files: FileList | null) => {
         if (!files) return;
+        const selectedFiles = Array.from(files);
+        if (selectedFiles.length === 0) return;
 
+        const validUploads: Array<{ file: File; kind: UploadKind }> = [];
+        const rejected: string[] = [];
+
+        selectedFiles.forEach((file) => {
+            const kind = getFileKind(file);
+            if (!kind) {
+                rejected.push(`${file.name}: نوع الملف غير مدعوم`);
+                return;
+            }
+
+            const maxFileSize = getMaxFileSize(kind);
+            if (file.size > maxFileSize) {
+                rejected.push(`${file.name}: الحد الأقصى ${getMaxFileSizeLabel(kind)}`);
+                return;
+            }
+
+            validUploads.push({ file, kind });
+        });
+
+        if (validUploads.length === 0) {
+            setUploadError(rejected.join(' | ') || 'لم يتم اختيار ملفات صالحة للرفع');
+            setUploadMessage(null);
+            return;
+        }
+
+        setUploadError(null);
+        setUploadMessage(`جاري رفع ${validUploads.length} ملف...`);
         setUploading(true);
+        try {
+            const results = await Promise.allSettled(
+                validUploads.map(async ({ file, kind }) => {
+                    const fd = new FormData();
+                    fd.append('file', file);
+                    fd.append('kind', kind);
+                    const { url } = await AdminAPI.uploadMedia(fd);
 
-        // Simulate upload delay (e.g., sending to Firebase Storage)
-        setTimeout(() => {
-            const newItems: MediaItem[] = Array.from(files).map(file => {
-                // In a REAL app, this URL would come from the server response
-                // Here we create a fake local URL for demo purposes
-                const fakeUrl = URL.createObjectURL(file);
+                    return {
+                        id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                            ? crypto.randomUUID()
+                            : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                        name: file.name,
+                        type: kind,
+                        url,
+                        size: file.size,
+                        uploadedAt: new Date().toISOString()
+                    } satisfies MediaItem;
+                })
+            );
 
-                return {
-                    id: crypto.randomUUID(),
-                    name: file.name,
-                    type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : 'video',
-                    url: fakeUrl,
-                    size: file.size,
-                    uploadedAt: new Date().toISOString()
-                };
+            const newItems = results
+                .filter((result): result is PromiseFulfilledResult<MediaItem> => result.status === 'fulfilled')
+                .map(result => result.value);
+
+            const failedUploads = results.flatMap((result, index) => {
+                if (result.status === 'fulfilled') return [];
+                const fileName = validUploads[index]?.file.name || 'ملف';
+                const reason = result.reason?.message || 'فشل الرفع';
+                return [`${fileName}: ${reason}`];
             });
 
-            setMediaItems([...newItems, ...mediaItems]);
+            if (newItems.length > 0) {
+                setMediaItems([...newItems, ...mediaItems]);
+                setUploadMessage(`تم رفع ${newItems.length} ملف بنجاح`);
+            } else {
+                setUploadMessage(null);
+            }
+
+            const errors = [...rejected, ...failedUploads];
+            setUploadError(errors.length > 0 ? errors.join(' | ') : null);
+        } finally {
             setUploading(false);
-        }, 1500);
+        }
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -121,6 +206,19 @@ export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, se
             exit={{ opacity: 0, y: -10 }}
             className="h-[calc(100vh-140px)] flex flex-col gap-6"
         >
+            {(uploadError || uploadMessage) && (
+                <div
+                    className={`rounded-2xl border px-5 py-4 text-sm font-bold ${
+                        uploadError
+                            ? 'bg-red-500/10 border-red-500/30 text-red-200'
+                            : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                    }`}
+                    role="status"
+                >
+                    {uploadError || uploadMessage}
+                </div>
+            )}
+
             {/* Header & Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -157,21 +255,25 @@ export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, se
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !uploading && fileInputRef.current?.click()}
             >
                 <input
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
                     multiple
-                    accept="image/*,video/*,audio/*"
-                    onChange={(e) => handleFileUpload(e.target.files)}
+                    accept={MEDIA_ACCEPT}
+                    disabled={uploading}
+                    onChange={(e) => {
+                        void handleFileUpload(e.target.files);
+                        e.target.value = '';
+                    }}
                 />
 
                 {uploading ? (
                     <div className="flex flex-col items-center gap-4">
                         <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                        <p className="font-bold text-white">جاري رفع الملفات للسحابة... ☁️</p>
+                        <p className="font-bold text-white">{uploadMessage || 'جاري رفع الملفات للخادم...'}</p>
                     </div>
                 ) : (
                     <>
@@ -179,7 +281,7 @@ export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, se
                             <UploadCloud size={32} className="text-white" />
                         </div>
                         <h3 className="text-xl font-bold text-white mb-2">اضغط أو اسحب الملفات هنا للرفع</h3>
-                        <p className="text-gray-500 text-sm">ندعم الصور (PNG, JPG) والفيديو (MP4) والصوت (MP3)</p>
+                        <p className="text-gray-500 text-sm">ندعم JPG/PNG/WebP/GIF و MP4/WebM و MP3/WAV/M4A/AAC</p>
                     </>
                 )}
             </div>
@@ -200,6 +302,7 @@ export const MediaLibraryTab: React.FC<MediaLibraryTabProps> = ({ mediaItems, se
                     <button onClick={() => setFilterType('all')} className={`px-4 py-3 rounded-xl transition-colors ${filterType === 'all' ? 'bg-pink-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>الكل</button>
                     <button onClick={() => setFilterType('image')} className={`px-4 py-3 rounded-xl transition-colors ${filterType === 'image' ? 'bg-pink-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>صور</button>
                     <button onClick={() => setFilterType('video')} className={`px-4 py-3 rounded-xl transition-colors ${filterType === 'video' ? 'bg-pink-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>فيديو</button>
+                    <button onClick={() => setFilterType('audio')} className={`px-4 py-3 rounded-xl transition-colors ${filterType === 'audio' ? 'bg-pink-600 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>صوت</button>
                 </div>
             </div>
 

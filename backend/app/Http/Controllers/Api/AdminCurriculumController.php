@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
 use App\Models\CurriculumModule;
+use App\Models\LessonRating;
 use Illuminate\Http\Request;
 
 class AdminCurriculumController extends Controller
@@ -37,9 +38,10 @@ class AdminCurriculumController extends Controller
             ->orderByDesc('updated_at')
             ->limit(700)
             ->get();
+        $ratingsByLesson = $this->ratingSummaryByLesson($lang);
 
         return response()->json([
-            'modules' => $rows->map(fn (CurriculumModule $m) => $this->mapModule($m))->values()->all(),
+            'modules' => $rows->map(fn (CurriculumModule $m) => $this->mapModule($m, $ratingsByLesson))->values()->all(),
         ]);
     }
 
@@ -108,16 +110,89 @@ class AdminCurriculumController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    private function mapModule(CurriculumModule $m): array
+    private function mapModule(CurriculumModule $m, array $ratingsByLesson = []): array
     {
+        $lessons = is_array($m->lessons) ? $m->lessons : [];
+        $lessons = array_map(function ($lesson) use ($ratingsByLesson) {
+            if (! is_array($lesson)) {
+                return $lesson;
+            }
+
+            $lessonId = (string) ($lesson['id'] ?? '');
+            if ($lessonId !== '' && isset($ratingsByLesson[$lessonId])) {
+                $lesson['ratingSummary'] = $ratingsByLesson[$lessonId];
+            }
+
+            return $lesson;
+        }, $lessons);
+
         return [
             'id' => (string) $m->id,
             'title' => (string) $m->title,
             'level' => (string) $m->level,
             'subLevel' => $m->sub_level ? (string) $m->sub_level : null,
-            'lessons' => is_array($m->lessons) ? $m->lessons : [],
+            'lessons' => $lessons,
             'isActive' => (bool) $m->is_active,
         ];
+    }
+
+    private function ratingSummaryByLesson(string $lang): array
+    {
+        $rows = LessonRating::query()
+            ->where('lang', $lang)
+            ->selectRaw('
+                lesson_id,
+                COUNT(*) as ratings_count,
+                AVG(rating) as average_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as stars_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as stars_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as stars_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as stars_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as stars_1
+            ')
+            ->groupBy('lesson_id')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $average = round((float) $row->average_rating, 2);
+            $count = (int) $row->ratings_count;
+            $out[(string) $row->lesson_id] = [
+                'averageRating' => $average,
+                'ratingsCount' => $count,
+                'distribution' => [
+                    '5' => (int) $row->stars_5,
+                    '4' => (int) $row->stars_4,
+                    '3' => (int) $row->stars_3,
+                    '2' => (int) $row->stars_2,
+                    '1' => (int) $row->stars_1,
+                ],
+                'satisfaction' => $this->satisfactionFor($average, $count),
+            ];
+        }
+
+        return $out;
+    }
+
+    private function satisfactionFor(float $average, int $count): array
+    {
+        if ($count < 5) {
+            return ['status' => 'insufficient', 'label' => 'بيانات غير كافية', 'color' => 'gray'];
+        }
+        if ($average >= 4.5) {
+            return ['status' => 'excellent', 'label' => 'ممتاز', 'color' => 'green'];
+        }
+        if ($average >= 4) {
+            return ['status' => 'very_good', 'label' => 'جيد جدا', 'color' => 'emerald'];
+        }
+        if ($average >= 3) {
+            return ['status' => 'average', 'label' => 'متوسط', 'color' => 'amber'];
+        }
+        if ($average >= 2) {
+            return ['status' => 'weak', 'label' => 'ضعيف', 'color' => 'orange'];
+        }
+
+        return ['status' => 'very_bad', 'label' => 'سيئ جدا', 'color' => 'red'];
     }
 }
 

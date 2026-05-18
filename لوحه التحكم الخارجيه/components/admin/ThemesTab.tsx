@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import {
     Palette, Moon, Smartphone, Check, LayoutDashboard,
@@ -8,7 +8,7 @@ import {
     Circle, Leaf
 } from 'lucide-react';
 import { AppTheme, ThemeSchedule, CustomThemeConfig } from '../../types';
-import { THEMES_DATA } from '../ThemeVisuals';
+import { THEMES_DATA } from '../themeData';
 import { getAutoTheme, formatHijriDate } from '../../utils/themeScheduler';
 
 interface ThemesTabProps {
@@ -59,6 +59,17 @@ export const ThemesTab: React.FC<ThemesTabProps> = ({
         accent: customThemeConfig?.accent || '#f59e0b',
         effect: customThemeConfig?.effect || 'none',
     }));
+
+    useEffect(() => {
+        setLocalConfig({
+            id: customThemeConfig?.id || generateId(),
+            name: customThemeConfig?.name || 'ثيم مخصص',
+            primary: customThemeConfig?.primary || '#7c3aed',
+            secondary: customThemeConfig?.secondary || '#db2777',
+            accent: customThemeConfig?.accent || '#f59e0b',
+            effect: customThemeConfig?.effect || 'none',
+        });
+    }, [customThemeConfig]);
 
     const handleAddSchedule = () => {
         const newSchedule: ThemeSchedule = {

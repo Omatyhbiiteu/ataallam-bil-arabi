@@ -7,14 +7,19 @@ import { GoogleAuthProvider, FacebookAuthProvider, signInWithPopup, signOut } fr
 
 const USER_TOKEN_KEY = 'hcard_user_token';
 
+type AuthResponse = {
+  token?: string;
+  user?: User;
+};
+
 export const authService = {
   isMockMode: false,
 
   login: async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
     try {
-      const result = await AuthAPI.login({ email, password });
-      const token = result?.token as string | undefined;
-      const user = result?.user as User | undefined;
+      const result = (await AuthAPI.login({ email, password })) as AuthResponse;
+      const token = result.token;
+      const user = result.user;
       if (!token || !user) {
         return { success: false, error: 'فشل تسجيل الدخول' };
       }
@@ -29,9 +34,9 @@ export const authService = {
 
   signup: async (name: string, email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
     try {
-      const result = await AuthAPI.register({ name, email, password });
-      const token = result?.token as string | undefined;
-      const user = result?.user as User | undefined;
+      const result = (await AuthAPI.register({ name, email, password })) as AuthResponse;
+      const token = result.token;
+      const user = result.user;
       if (!token || !user) {
         return { success: false, error: 'فشل إنشاء الحساب' };
       }
@@ -54,14 +59,14 @@ export const authService = {
     if (!email) {
       throw new Error('تعذر الحصول على البريد من Google');
     }
-    const response = await AuthAPI.socialRegister({
+    const response = (await AuthAPI.socialRegister({
       provider: 'google',
       email,
       name: result.user.displayName || email.split('@')[0],
       avatar: result.user.photoURL || null,
-    });
-    const token = response?.token as string | undefined;
-    const user = response?.user as User | undefined;
+    })) as AuthResponse;
+    const token = response.token;
+    const user = response.user;
     if (!token || !user) {
       throw new Error('تعذر إنشاء الحساب عبر Google');
     }
@@ -82,14 +87,14 @@ export const authService = {
     if (!email) {
       throw new Error('فيسبوك لم يرسل البريد الإلكتروني. تأكد من صلاحيات الحساب.');
     }
-    const response = await AuthAPI.socialRegister({
+    const response = (await AuthAPI.socialRegister({
       provider: 'facebook',
       email,
       name: result.user.displayName || email.split('@')[0],
       avatar: result.user.photoURL || null,
-    });
-    const token = response?.token as string | undefined;
-    const user = response?.user as User | undefined;
+    })) as AuthResponse;
+    const token = response.token;
+    const user = response.user;
     if (!token || !user) {
       throw new Error('تعذر إنشاء الحساب عبر Facebook');
     }
@@ -105,6 +110,7 @@ export const authService = {
     localStorage.removeItem(USER_TOKEN_KEY);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('hcard_auth_session');
+    localDb.save('auth_session', null);
   },
 
   deleteAccount: async (): Promise<{ success: boolean; error?: string }> => {
@@ -121,7 +127,19 @@ export const authService = {
   },
 
   getCurrentUser: (): User | null => {
+    const token = localStorage.getItem(USER_TOKEN_KEY) || localStorage.getItem('auth_token');
+    if (!token) {
+      localDb.save('auth_session', null);
+      return null;
+    }
     return localDb.load<User | null>('auth_session', null);
+  },
+
+  clearLocalSession: () => {
+    localStorage.removeItem(USER_TOKEN_KEY);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('hcard_auth_session');
+    localDb.save('auth_session', null);
   },
 
   saveUser: (user: User) => {
@@ -130,15 +148,15 @@ export const authService = {
 
   updateProfile: async (updates: Partial<User>): Promise<{ success: boolean; user?: User; error?: string }> => {
     try {
-      const result = await AuthAPI.updateProfile({
+      const result = (await AuthAPI.updateProfile({
         name: updates.name,
         targetLanguage: updates.targetLanguage,
         age: updates.age,
         gender: updates.gender,
         startLevel: updates.startLevel,
         avatar: updates.avatar,
-      });
-      const user = result?.user as User | undefined;
+      })) as Pick<AuthResponse, 'user'>;
+      const user = result.user;
       if (!user) {
         return { success: false, error: 'فشل تحديث البيانات' };
       }

@@ -11,6 +11,61 @@ const BASE_URL = (
     (import.meta.env.DEV ? "/api" : "http://127.0.0.1:5000/api")
 ).replace(/\/$/, "");
 
+function getApiOrigin(): string {
+    if (!/^https?:\/\//i.test(BASE_URL)) return "";
+    return BASE_URL.replace(/\/api\/?$/i, "");
+}
+
+function normalizeUploadedMediaResponse(data: any): { url: string; path?: string } {
+    // Log raw response to help debug unexpected formats
+    console.log('[uploadMedia] Raw server response:', data);
+
+    const apiOrigin = getApiOrigin();
+
+    // Helper: make a relative path into a proper URL
+    const toUrl = (raw: string): string => {
+        const trimmed = raw.trim();
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+        return apiOrigin ? `${apiOrigin}${normalized}` : normalized;
+    };
+
+    // Try every known field name Laravel backends use for the uploaded file URL.
+    // IMPORTANT: Check `path` BEFORE `url` — the backend may return an absolute URL
+    // pointing to its own port (e.g. http://127.0.0.1:5000/storage/...) which bypasses
+    // the Vite dev-server proxy. The relative `path` (/storage/...) is safer in dev.
+    const candidates = [
+        data?.path,           // "/storage/curriculum-media/images/abc.jpg"  ← prefer this
+        data?.url,            // "http://127.0.0.1:5000/storage/..."         ← fallback
+        data?.file_path,
+        data?.file_url,
+        data?.image_url,
+        data?.image,
+        data?.media_url,
+        data?.link,
+        data?.src,
+        // Nested: { data: { ... } }
+        data?.data?.path,
+        data?.data?.url,
+        data?.data?.file_url,
+        data?.data?.image_url,
+        // Nested: { media: { ... } }
+        data?.media?.path,
+        data?.media?.url,
+    ];
+
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+            const url = toUrl(candidate);
+            return { url, path: candidate.trim() };
+        }
+    }
+
+    // Nothing matched — throw with the raw response so the developer can fix it
+    console.error('[uploadMedia] Unrecognized response format:', data);
+    throw new Error(`استجابة غير متوقعة من الخادم. البيانات المستلمة: ${JSON.stringify(data)}`);
+}
+
 /** مسارات لوحة المسئول تحتاج توكن المسئول فقط — وإلا يُرفض الحفظ (403) إذا وُجد auth_token للمستخدم. */
 function getAuthTokenForEndpoint(endpoint: string): string | null {
     if (endpoint.startsWith("/admin")) {
@@ -24,6 +79,7 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     const token = getAuthTokenForEndpoint(endpoint);
 
     const headers = {
+        "Accept": "application/json",
         "Content-Type": "application/json",
         ...options.headers,
     } as Record<string, string>;
@@ -155,6 +211,17 @@ export const SentencesAPI = {
     getAll: (lang: string) => fetchApi(`/content/${lang}/sentences`),
 };
 
+export const GamesAPI = {
+    getAll: (lang: string) => fetchApi(`/content/${lang}/games`),
+    getUsage: () => fetchApi('/user/games/usage'),
+    start: (gameId: string) => fetchApi(`/user/games/${encodeURIComponent(gameId)}/start`, { method: 'POST' }),
+    complete: (attemptId: string, answers: Array<{ questionId: string; answer: string | string[] }>) =>
+        fetchApi(`/user/games/attempts/${encodeURIComponent(attemptId)}/complete`, {
+            method: 'POST',
+            body: JSON.stringify({ answers }),
+        }),
+};
+
 // ----------------------------------------------------
 // 7. AI Services (الذكاء الاصطناعي)
 // ----------------------------------------------------
@@ -218,7 +285,7 @@ export const AdminAPI = {
     /** تحليلات لوحة المسئول — يمرّر lang=en|de|both ليتوافق مع فلتر المحتوى في الأدمن */
     getAnalyticsDashboard: (lang?: "en" | "de" | "both") =>
         fetchApi(
-            `/admin/analytics/dashboard${lang != null && lang !== "" ? `?lang=${encodeURIComponent(lang)}` : ""}`
+            `/admin/analytics/dashboard${lang != null ? `?lang=${encodeURIComponent(lang)}` : ""}`
         ),
     /** طلبات «نسيت كلمة المرور» المرسلة من التطبيق */
     getPasswordRecoveryRequests: () => fetchApi("/admin/password-recovery-requests"),
@@ -247,6 +314,34 @@ export const AdminAPI = {
     deleteSystemCard: (lang: string, id: string) =>
         fetchApi(`/admin/content/${lang}/cards/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
+    getCardImageAssets: (lang?: "en" | "de") =>
+        fetchApi(`/admin/card-image-assets${lang ? `?lang=${encodeURIComponent(lang)}` : ""}`),
+    createCardImageAsset: async (formData: FormData) => {
+        const token = localStorage.getItem("hcard_admin_token");
+        const response = await fetch(`${BASE_URL}/admin/card-image-assets`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}`, Accept: "application/json" } : { Accept: "application/json" },
+            body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const firstValidation =
+                data?.errors && typeof data.errors === "object"
+                    ? Object.values(data.errors)?.flat?.()?.[0]
+                    : null;
+            throw new Error(
+                (typeof firstValidation === "string" && firstValidation.trim()) ||
+                (typeof data?.message === "string" && data.message.trim()) ||
+                `HTTP ${response.status}`
+            );
+        }
+        return data;
+    },
+    updateCardImageAsset: (id: string, data: any) =>
+        fetchApi(`/admin/card-image-assets/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteCardImageAsset: (id: string) =>
+        fetchApi(`/admin/card-image-assets/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
     createStory: (lang: string, data: any) => fetchApi(`/admin/content/${lang}/stories`, { method: "POST", body: JSON.stringify(data) }),
     getStories: (lang: string) => fetchApi(`/admin/content/${lang}/stories`),
     updateStory: (lang: string, id: string, data: any) => fetchApi(`/admin/content/${lang}/stories/${id}`, { method: "PUT", body: JSON.stringify(data) }),
@@ -261,6 +356,11 @@ export const AdminAPI = {
     createSentenceTopic: (lang: string, data: any) => fetchApi(`/admin/content/${lang}/sentences`, { method: "POST", body: JSON.stringify(data) }),
     updateSentenceTopic: (lang: string, id: string, data: any) => fetchApi(`/admin/content/${lang}/sentences/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     deleteSentenceTopic: (lang: string, id: string) => fetchApi(`/admin/content/${lang}/sentences/${id}`, { method: "DELETE" }),
+
+    getGames: (lang: string) => fetchApi(`/admin/content/${lang}/games`),
+    createGame: (lang: string, data: any) => fetchApi(`/admin/content/${lang}/games`, { method: "POST", body: JSON.stringify(data) }),
+    updateGame: (lang: string, id: string, data: any) => fetchApi(`/admin/content/${lang}/games/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
+    deleteGame: (lang: string, id: string) => fetchApi(`/admin/content/${lang}/games/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
     // Marketing Mgmt
     createCoupon: (data: any) => fetchApi("/admin/coupons", { method: "POST", body: JSON.stringify(data) }),
@@ -306,31 +406,95 @@ export const AdminAPI = {
     /** رفع ملف وسائط (multipart) — يُخزَّن على الخادم ويُعاد الرابط فقط */
     uploadMedia: async (formData: FormData): Promise<{ url: string; path?: string }> => {
         const token = localStorage.getItem("hcard_admin_token");
-        const response = await fetch(`${BASE_URL}/admin/media/upload`, {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: formData,
-        });
-        let data: any = {};
         try {
-            data = await response.json();
-        } catch {
-            data = {};
+            const response = await fetch(`${BASE_URL}/admin/media/upload`, {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: formData,
+            });
+            let data: any = {};
+            try {
+                data = await response.json();
+            } catch {
+                data = {};
+            }
+            if (!response.ok) {
+                const firstValidation =
+                    data?.errors && typeof data.errors === "object"
+                        ? Object.values(data.errors)?.flat?.()?.[0]
+                        : null;
+                const msg =
+                    (typeof firstValidation === "string" && firstValidation.trim()) ||
+                    (typeof data?.message === "string" && data.message.trim()) ||
+                    (data?.errors && JSON.stringify(data.errors)) ||
+                    `HTTP ${response.status}`;
+                throw new Error(msg);
+            }
+            return normalizeUploadedMediaResponse(data);
+        } catch (error: any) {
+            const msg = typeof error?.message === "string" ? error.message : "";
+            if (
+                msg === "Failed to fetch" ||
+                error?.name === "TypeError" ||
+                /network|fetch/i.test(msg)
+            ) {
+                throw new Error(
+                    "تعذر رفع الملف للخادم. تأكد من تشغيل Laravel ومن إعداد VITE_BACKEND_API_URL أو VITE_BACKEND_PROXY_URL بشكل صحيح."
+                );
+            }
+            throw error;
         }
-        if (!response.ok) {
-            const msg =
-                (typeof data?.message === "string" && data.message.trim()) ||
-                (data?.errors && JSON.stringify(data.errors)) ||
-                `HTTP ${response.status}`;
-            throw new Error(msg);
-        }
-        if (typeof data?.url !== "string" || !data.url) {
-            throw new Error("استجابة غير متوقعة من الخادم (لا يوجد رابط)");
-        }
-        return data;
+    },
+
+    /** رفع ملف مع تتبع نسبة التقدم (0–100) عبر XMLHttpRequest */
+    uploadMediaWithProgress: (
+        formData: FormData,
+        onProgress: (percent: number) => void
+    ): Promise<{ url: string; path?: string }> => {
+        return new Promise((resolve, reject) => {
+            const token = localStorage.getItem('hcard_admin_token');
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${BASE_URL}/admin/media/upload`);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                let data: any = {};
+                try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try { resolve(normalizeUploadedMediaResponse(data)); }
+                    catch (e: any) { reject(e); }
+                } else {
+                    const firstValidation =
+                        data?.errors && typeof data.errors === 'object'
+                            ? Object.values(data.errors)?.flat?.()?.[0]
+                            : null;
+                    const msg =
+                        (typeof firstValidation === 'string' && firstValidation.trim()) ||
+                        (typeof data?.message === 'string' && data.message.trim()) ||
+                        `HTTP ${xhr.status}`;
+                    reject(new Error(msg));
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('تعذر رفع الملف. تأكد من تشغيل الخادم واتصال الشبكة.'));
+            });
+
+            xhr.send(formData);
+        });
     },
 
     // Themes Setting
+    getThemeSettings: () => fetchApi("/admin/settings/theme"),
+    updateThemeSettings: (settings: unknown) =>
+        fetchApi("/admin/settings/theme", { method: "PUT", body: JSON.stringify({ settings }) }),
     getThemeSchedules: () => fetchApi("/admin/themes/schedules"),
     updateThemeSchedule: (id: string, data: any) => fetchApi(`/admin/themes/schedules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     getCustomTheme: () => fetchApi("/admin/themes/custom"),
@@ -348,4 +512,5 @@ export const AdminAPI = {
 // Settings (Public) — قد نحتاجها داخل لوحة التحكم للعرض السريع/التأكد
 export const SettingsAPI = {
     getLanguageAvailability: () => fetchApi("/settings/language-availability"),
+    getThemeSettings: () => fetchApi("/settings/theme"),
 };

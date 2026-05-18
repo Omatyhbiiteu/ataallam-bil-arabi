@@ -118,14 +118,19 @@ export const QuestionForm: React.FC<QuestionFormProps> = ({ question, onChange, 
                         <X size={14} />
                     </button>
 
-                    {question.mediaType === 'image' && <img src={question.mediaUrl} className="w-full h-48 object-cover" />}
-                    {question.mediaType === 'video' && <video src={question.mediaUrl} controls className="w-full h-48 bg-black" />}
+                    {question.mediaType === 'image' && (
+                        <div className="relative w-full h-48 overflow-hidden bg-slate-900">
+                            <img src={question.mediaUrl} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                            <img src={question.mediaUrl} className="relative z-[1] w-full h-full object-contain p-3" alt="" />
+                        </div>
+                    )}
+                    {question.mediaType === 'video' && <video src={question.mediaUrl} controls controlsList="nodownload noplaybackrate" disablePictureInPicture onContextMenu={(e) => e.preventDefault()} className="w-full h-48 bg-black" />}
                     {question.mediaType === 'audio' && (
                         <div className="p-6 flex flex-col items-center justify-center gap-4 h-32 bg-indigo-50 dark:bg-indigo-900/20">
                             <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-300">
                                 <Music size={24} />
                             </div>
-                            <audio src={question.mediaUrl} controls className="w-full h-8" />
+                            <audio src={question.mediaUrl} controls controlsList="nodownload noplaybackrate" onContextMenu={(e) => e.preventDefault()} className="w-full h-8" />
                         </div>
                     )}
                 </div>

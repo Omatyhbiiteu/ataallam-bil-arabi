@@ -11,6 +11,10 @@ return new class extends Migration {
             return;
         }
 
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         // السماح بقيمة both بالإضافة إلى en و de
         DB::statement('ALTER TABLE sentence_topics MODIFY sentence_lang VARCHAR(8) NOT NULL');
     }
@@ -22,6 +26,9 @@ return new class extends Migration {
         }
 
         DB::statement("UPDATE sentence_topics SET sentence_lang = 'de' WHERE sentence_lang = 'both'");
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement('ALTER TABLE sentence_topics MODIFY sentence_lang VARCHAR(2) NOT NULL');
     }
 };

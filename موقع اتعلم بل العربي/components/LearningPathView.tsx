@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-
+import { motion, AnimatePresence } from 'framer-motion';
 import { Module, Lesson } from '../types';
 import { LearningPathHeader } from './learning-path/LearningPathHeader';
 import { ModuleList } from './learning-path/ModuleList';
@@ -8,7 +8,8 @@ import { LessonProvider } from './learning-path/context/LessonContext';
 import { LevelSelector } from './learning-path/LevelSelector';
 import { translations } from '../utils/translations';
 import { speakText } from '../services/ttsService';
-import { Heart, Flame, Coins } from 'lucide-react';
+import { LessonRatingsAPI } from '../services/apiClient';
+import { Heart, Flame, Coins, Trophy, ArrowRight, Star, Zap, CheckCircle } from 'lucide-react';
 
 interface LearningPathViewProps {
     t: any;
@@ -90,12 +91,18 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
                 (module.lessons || []).map((lesson) => ({
                     id: lesson.id,
                     level: module.level || 'A1',
+                    subLevel: module.subLevel || 'A1.1',
+                    moduleId: module.id
                 }))
             ),
         [curriculum]
     );
     const activeLessonIndex = useMemo(() => allLessons.findIndex(l => l.id === activeLessonId), [allLessons, activeLessonId]);
     const activeLesson = activeLessonId ? allLessons.find(l => l.id === activeLessonId) : null;
+    const activeLessonModule = useMemo(
+        () => activeLessonId ? curriculum.find(module => (module.lessons || []).some(lesson => lesson.id === activeLessonId)) : null,
+        [activeLessonId, curriculum]
+    );
     const currentLessonNotes = useMemo(() => activeLessonId ? notes.filter(n => n.lessonId === activeLessonId) : [], [notes, activeLessonId]);
     const sequentialCompletedLessonIds = useMemo(() => {
         const completed = new Set(completedLessonIds);
@@ -168,6 +175,68 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
         localStorage.setItem('lesson_ratings', JSON.stringify(lessonRatings));
     }, [lessonRatings]);
 
+    useEffect(() => {
+        let cancelled = false;
+
+        void (async () => {
+            const token = localStorage.getItem('auth_token') || localStorage.getItem('hcard_user_token');
+            if (!token) return;
+
+            try {
+                const res = await LessonRatingsAPI.getMine(learningLang) as { ratings?: Array<{ lessonId: string; rating: number }> };
+                if (cancelled || !Array.isArray(res?.ratings)) return;
+
+                setLessonRatings(prev => {
+                    const next = { ...prev };
+                    for (const item of res.ratings || []) {
+                        if (!item?.lessonId || typeof item.rating !== 'number') continue;
+                        next[item.lessonId] = { rating: item.rating };
+                    }
+                    return next;
+                });
+            } catch (error) {
+                console.warn('Lesson ratings sync skipped:', error);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [learningLang]);
+
+    useEffect(() => {
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('hcard_user_token');
+        if (!token || !curriculum.length) return;
+
+        const syncKey = `lesson_ratings_synced_${learningLang}`;
+        if (sessionStorage.getItem(syncKey) === 'true') return;
+        sessionStorage.setItem(syncKey, 'true');
+
+        const lessonLookup = new Map<string, { lesson: Lesson; module: Module }>();
+        for (const module of curriculum) {
+            for (const lesson of module.lessons || []) {
+                lessonLookup.set(lesson.id, { lesson, module });
+            }
+        }
+
+        Object.entries(lessonRatings).forEach(([lessonId, value]) => {
+            const rating = Number(value?.rating);
+            if (!Number.isInteger(rating) || rating < 1 || rating > 5) return;
+
+            const found = lessonLookup.get(lessonId);
+            void LessonRatingsAPI.save({
+                lang: learningLang,
+                lessonId,
+                rating,
+                lessonTitle: found?.lesson.title,
+                moduleId: found?.module.id,
+                moduleTitle: found?.module.title,
+            }).catch((error) => {
+                console.warn('Lesson rating backfill skipped:', error);
+            });
+        });
+    }, [curriculum, learningLang, lessonRatings]);
+
     // Gamification Effects
     useEffect(() => {
         localStorage.setItem('gamification_streak', streak.toString());
@@ -175,69 +244,7 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
         localStorage.setItem('gamification_coins', coins.toString());
     }, [streak, hearts, coins]);
 
-    useEffect(() => {
-        if (prevSequentialCountRef.current === null) {
-            prevSequentialCountRef.current = sequentialCompletedCount;
-            return;
-        }
-        if (sequentialCompletedCount < prevSequentialCountRef.current) {
-            prevSequentialCountRef.current = sequentialCompletedCount;
-            return;
-        }
-        if (sequentialCompletedCount === prevSequentialCountRef.current) {
-            return;
-        }
-        prevSequentialCountRef.current = sequentialCompletedCount;
-
-        const seqIds = sequentialIdsLatestRef.current;
-        const completedAfter = new Set(seqIds);
-        const completedBefore = new Set(seqIds.slice(0, -1));
-        const totalOrderedLessons = orderedLessonsWithLevel.length;
-
-        if (totalOrderedLessons > 0 && sequentialCompletedCount === totalOrderedLessons) {
-            const finalCongratsKey = `learning_path_final_congrats_seen_${learningLang}_${totalOrderedLessons}`;
-            const alreadyShown = localStorage.getItem(finalCongratsKey) === '1';
-            if (!alreadyShown) {
-                localStorage.setItem(finalCongratsKey, '1');
-                setFinalPathCongratsModal(true);
-            }
-            return;
-        }
-
-        for (let i = 0; i < LEVEL_ORDER.length - 1; i++) {
-            const level = LEVEL_ORDER[i];
-            const levelLessons = orderedLessonsWithLevel.filter((x) => normalizeLevel(x.level) === level);
-            if (levelLessons.length === 0) continue;
-
-            const isLevelCompleted = levelLessons.every((x) => completedAfter.has(x.id));
-            const wasLevelCompletedBefore = levelLessons.every((x) => completedBefore.has(x.id));
-            if (!isLevelCompleted || wasLevelCompletedBefore) continue;
-
-            const nextLevel = LEVEL_ORDER
-                .slice(i + 1)
-                .find((candidate) => orderedLessonsWithLevel.some((x) => normalizeLevel(x.level) === candidate));
-            if (!nextLevel) continue;
-
-            if (!isProSubscriber) {
-                onRequirePro?.('إكمال المستويات والانتقال للمسار الكامل متاح لمشتركي برو. ترقّى للمتابعة من A2 فما فوق.');
-                return;
-            }
-
-            setLevelCongratsModal({ completedLevel: level, nextLevel });
-            const firstNextSubLevel = curriculum.find((m) => normalizeLevel(m.level) === nextLevel)?.subLevel || `${nextLevel}.1`;
-
-            if (levelAdvanceTimerRef.current) {
-                window.clearTimeout(levelAdvanceTimerRef.current);
-            }
-            levelAdvanceTimerRef.current = window.setTimeout(() => {
-                setSelectedLevel(nextLevel);
-                setSelectedSubLevel(firstNextSubLevel);
-                setLevelCongratsModal(null);
-                levelAdvanceTimerRef.current = 0;
-            }, 2200);
-            return;
-        }
-    }, [curriculum, orderedLessonsWithLevel, sequentialCompletedCount, learningLang, isProSubscriber, onRequirePro]);
+    // تتم معالجة الانتقال للمستوى التالي من خلال onComplete في LessonProvider
 
     useEffect(() => {
         return () => {
@@ -285,27 +292,30 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
 
     const handleRateLesson = (rating: number) => {
         if (!activeLessonId) return;
+        const lessonId = activeLessonId;
         setLessonRatings(prev => ({
             ...prev,
-            [activeLessonId]: { rating }
+            [lessonId]: { rating }
         }));
+
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('hcard_user_token');
+        if (!token) return;
+
+        void LessonRatingsAPI.save({
+            lang: learningLang,
+            lessonId,
+            rating,
+            lessonTitle: activeLesson?.title,
+            moduleId: activeLessonModule?.id,
+            moduleTitle: activeLessonModule?.title,
+        }).catch((error) => {
+            console.warn('Lesson rating saved locally only:', error);
+        });
     };
 
     const dismissLevelCongratsAndAdvance = useCallback(() => {
-        setLevelCongratsModal((modal) => {
-            if (!modal) return null;
-            if (levelAdvanceTimerRef.current) {
-                window.clearTimeout(levelAdvanceTimerRef.current);
-                levelAdvanceTimerRef.current = 0;
-            }
-            const { nextLevel } = modal;
-            const firstNextSubLevel =
-                curriculum.find((m) => normalizeLevel(m.level) === nextLevel)?.subLevel || `${nextLevel}.1`;
-            setSelectedLevel(nextLevel);
-            setSelectedSubLevel(firstNextSubLevel);
-            return null;
-        });
-    }, [curriculum]);
+        setLevelCongratsModal(null);
+    }, []);
 
     // Helpers
     const isLessonLocked = (index: number) => index > sequentialCompletedCount;
@@ -316,7 +326,7 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
     };
 
     const getTotalTimeSpent = () => {
-        return 12500;
+        return 12500; // Mock total time
     };
 
     const formatTimeSpent = (seconds: number) => {
@@ -326,88 +336,380 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
         return `${m}m`;
     };
 
-    // View
-    if (activeLessonId && activeLesson) {
-        return (
-            <LessonProvider
-                activeLesson={activeLesson}
-                activeLessonIndex={activeLessonIndex}
-                timeSpent={elapsedTime}
-                isBookmarked={bookmarkedLessons.includes(activeLessonId)}
-                lessonNotes={currentLessonNotes}
-                lessonRating={lessonRatings[activeLessonId]}
-                onClose={() => setActiveLessonId(null)}
-                onPrevLesson={() => {
-                    const prevIndex = activeLessonIndex - 1;
-                    if (prevIndex >= 0) setActiveLessonId(allLessons[prevIndex].id);
-                }}
-                onToggleBookmark={handleToggleBookmark}
-                onAddNote={handleAddNote}
-                onDeleteNote={handleDeleteNote}
-                onComplete={(lessonId, score) => {
-                    const lessonIdx = allLessons.findIndex((l) => l.id === lessonId);
-                    if (lessonIdx < 0 || lessonIdx > sequentialCompletedCount) {
-                        return;
-                    }
-                    // Gamification Rewards
-                    const baseCoins = 10;
-                    const bonusCoins = score ? Math.floor(score / 10) : 0;
-                    setCoins(prev => prev + baseCoins + bonusCoins);
+    const modals = (
+        <>
+            {/* ═══ مودال إتمام المستوى — أسلوب تسويقي مصري احترافي ═══ */}
+            <AnimatePresence>
+            {levelCongratsModal && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(16px)' }}
+                >
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        className="w-full max-w-md text-center relative overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(160deg, #0c0a1e 0%, #1a1040 50%, #0c0a1e 100%)',
+                            borderRadius: '2.5rem',
+                            border: '1px solid rgba(250,204,21,0.25)',
+                            boxShadow: '0 0 100px rgba(250,204,21,0.2), 0 0 40px rgba(139,92,246,0.3), 0 30px 80px rgba(0,0,0,0.6)'
+                        }}
+                    >
+                        <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: '2.5rem', overflow: 'hidden' }}>
+                            <div className="absolute -top-16 right-0 left-0 h-40 opacity-30"
+                                style={{ background: 'linear-gradient(180deg, rgba(250,204,21,0.3) 0%, transparent 100%)' }} />
+                            <div className="absolute top-1/3 -left-20 w-60 h-60 rounded-full opacity-15"
+                                style={{ background: 'radial-gradient(circle, #8b5cf6 0%, transparent 70%)' }} />
+                            <div className="absolute bottom-0 -right-10 w-60 h-60 rounded-full opacity-10"
+                                style={{ background: 'radial-gradient(circle, #f59e0b 0%, transparent 70%)' }} />
+                        </div>
 
-                    // Call original handler
-                    onCompleteLesson(lessonId, score);
-                }}
-                onRateLesson={handleRateLesson}
-                speakText={(text) => speakText(text, learningLang)}
-                t={parentT}
-                dir={dir}
-                formatTimeSpent={formatTimeSpent}
-            >
-                <LessonView />
-            </LessonProvider>
+                        <div className="relative p-8">
+                            <motion.div
+                                initial={{ scale: 0, y: -20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                transition={{ delay: 0.15, type: 'spring', stiffness: 220 }}
+                                className="mx-auto mb-5 w-24 h-24 rounded-full flex items-center justify-center"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #f59e0b 100%)',
+                                    boxShadow: '0 0 50px rgba(250,204,21,0.5), 0 0 100px rgba(250,204,21,0.2)'
+                                }}
+                            >
+                                <Trophy size={44} className="text-white drop-shadow-xl" />
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.25 }}
+                                className="flex justify-center gap-1.5 mb-4"
+                            >
+                                {[0,1,2,3,4].map(i => (
+                                    <motion.div key={i}
+                                        initial={{ scale: 0, rotate: -20 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        transition={{ delay: 0.25 + i * 0.07, type: 'spring' }}
+                                    >
+                                        <Star size={22} className="fill-yellow-400 text-yellow-400" />
+                                    </motion.div>
+                                ))}
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest mb-4"
+                                style={{ background: 'rgba(250,204,21,0.15)', border: '1px solid rgba(250,204,21,0.35)', color: '#fbbf24' }}
+                            >
+                                <Flame size={11} className="fill-current" />
+                                مستوى مكتمل
+                            </motion.div>
+
+                            <motion.h3
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.35 }}
+                                className="text-3xl font-black text-white mb-2"
+                            >
+                                عاش يا نجم! 🎯
+                            </motion.h3>
+
+                            <motion.p
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.4 }}
+                                className="text-base font-bold mb-1"
+                                style={{ color: 'rgba(253,230,138,0.9)' }}
+                            >
+                                راجعت كويس وخلّصت مستوى{' '}
+                                <span className="text-white text-xl font-black">{levelCongratsModal.completedLevel}</span>
+                            </motion.p>
+
+                            <motion.p
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.45 }}
+                                className="text-sm font-bold mb-6"
+                                style={{ color: 'rgba(196,181,253,0.8)' }}
+                            >
+                                جهّز نفسك للمستوى التالي:{' '}
+                                <span className="font-black text-yellow-300 text-base">{levelCongratsModal.nextLevel} 🚀</span>
+                                <span className="block mt-2 text-xs leading-relaxed" style={{ color: 'rgba(250,204,21,0.9)' }}>
+                                    💡 <strong className="text-yellow-400">ملحوظة هامة:</strong> لازم تراجع كلمات وقواعد المستوى ده كويس جداً قبل ما تدخل وتكمّل في المستوى اللي بعده عشان تبني أساس قوي!
+                                </span>
+                            </motion.p>
+
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.48 }}
+                                className="flex justify-center gap-5 p-4 rounded-2xl mb-6"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+                            >
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-yellow-400">{coins} 🪙</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(196,181,253,0.65)' }}>عملتك</div>
+                                </div>
+                                <div style={{ width: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-orange-400">{streak} 🔥</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(196,181,253,0.65)' }}>يوم متتالي</div>
+                                </div>
+                                <div style={{ width: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                <div className="text-center">
+                                    <div className="text-xl font-black text-emerald-400">{sequentialCompletedCount} ✅</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'rgba(196,181,253,0.65)' }}>درس أكملته</div>
+                                </div>
+                            </motion.div>
+
+                            <motion.button
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.55 }}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                type="button"
+                                onClick={dismissLevelCongratsAndAdvance}
+                                className="w-full py-4 rounded-2xl font-black text-xl flex items-center justify-center gap-3 text-gray-900"
+                                style={{
+                                    background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                                    boxShadow: '0 8px 40px rgba(251,191,36,0.45)'
+                                }}
+                            >
+                                <Zap size={22} className="fill-gray-900" />
+                                إغلاق ومتابعة 🚀
+                            </motion.button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+            </AnimatePresence>
+
+            {/* ═══ مودال إتمام المسار كامل — Ultimate ═══ */}
+            <AnimatePresence>
+            {finalPathCongratsModal && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[125] flex items-center justify-center p-4"
+                    style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)' }}
+                >
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 250, damping: 20 }}
+                        className="w-full max-w-lg text-center relative overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(135deg, #064e3b 0%, #065f46 40%, #047857 100%)',
+                            borderRadius: '2.5rem',
+                            border: '1px solid rgba(52,211,153,0.3)',
+                            boxShadow: '0 0 100px rgba(16,185,129,0.4), 0 30px 80px rgba(0,0,0,0.6)'
+                        }}
+                    >
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ borderRadius: '2.5rem' }}>
+                            <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(52,211,153,0.2) 0%, transparent 70%)' }} />
+                            <div className="absolute -bottom-24 -left-24 w-80 h-80 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.1) 0%, transparent 70%)' }} />
+                        </div>
+
+                        <div className="relative p-8 md:p-10">
+                            <motion.div
+                                initial={{ scale: 0, y: -30 }}
+                                animate={{ scale: 1, y: 0 }}
+                                transition={{ delay: 0.15, type: 'spring', stiffness: 180 }}
+                                className="mx-auto mb-4 w-28 h-28 rounded-full flex items-center justify-center"
+                                style={{ background: 'linear-gradient(135deg, #f59e0b, #fbbf24, #f59e0b)', boxShadow: '0 0 60px rgba(251,191,36,0.6), 0 0 120px rgba(251,191,36,0.2)' }}
+                            >
+                                <Trophy size={56} className="text-white drop-shadow-xl" />
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.3 }}
+                                className="flex justify-center gap-2 mb-5"
+                            >
+                                {[0,1,2,3,4].map(i => (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ scale: 0, rotate: -30 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        transition={{ delay: 0.3 + i * 0.08, type: 'spring' }}
+                                    >
+                                        <Star size={28} className="fill-yellow-400 text-yellow-400 drop-shadow-lg" />
+                                    </motion.div>
+                                ))}
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.4 }}
+                                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest mb-4"
+                                style={{ background: 'rgba(251,191,36,0.2)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24' }}
+                            >
+                                <Trophy size={12} />
+                                إنجاز استثنائي
+                            </motion.div>
+
+                            <motion.h3
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.45 }}
+                                className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight"
+                            >
+                                أنهيت المسار كامل! 🏆
+                            </motion.h3>
+
+                            <motion.p
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.5 }}
+                                className="text-base font-bold leading-relaxed mb-6"
+                                style={{ color: 'rgba(167,243,208,0.9)' }}
+                            >
+                                لأنك ما استسلمتش وكملت كل الدروس،<br />
+                                دلوقتي أنت جاهز تستخدم اللغة بثقة تامة 🌟
+                            </motion.p>
+
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.55 }}
+                                className="grid grid-cols-3 gap-3 mb-6"
+                            >
+                                {[
+                                    { value: sequentialCompletedCount, label: 'درس أُتم', color: '#34d399' },
+                                    { value: coins, label: 'عملة مكتسبة', color: '#fbbf24' },
+                                    { value: streak, label: 'يوم متواصل', color: '#f87171' },
+                                ].map((stat, i) => (
+                                    <div key={i} className="p-3 rounded-2xl text-center" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div className="text-2xl font-black" style={{ color: stat.color }}>{stat.value}</div>
+                                        <div className="text-[10px] font-bold mt-0.5 uppercase tracking-wide" style={{ color: 'rgba(167,243,208,0.6)' }}>{stat.label}</div>
+                                    </div>
+                                ))}
+                            </motion.div>
+
+                            <motion.button
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.6 }}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                type="button"
+                                onClick={() => setFinalPathCongratsModal(false)}
+                                className="w-full py-4 rounded-2xl font-black text-xl flex items-center justify-center gap-3"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                                    boxShadow: '0 8px 40px rgba(251,191,36,0.5)',
+                                    color: '#1a1a1a'
+                                }}
+                            >
+                                <CheckCircle size={24} />
+                                كمّل يا بطل 🚀
+                            </motion.button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+            </AnimatePresence>
+        </>
+    );
+
+    if (activeLessonId && activeLesson) {
+        const activeLessonWithLevel = orderedLessonsWithLevel.find(l => l.id === activeLesson.id);
+        const levelLessons = orderedLessonsWithLevel.filter(l => l.moduleId === activeLessonWithLevel?.moduleId);
+        const isLastLessonInLevel = levelLessons[levelLessons.length - 1]?.id === activeLesson.id;
+
+        return (
+            <>
+                {modals}
+                <LessonProvider
+                    activeLesson={activeLesson}
+                    activeLessonIndex={activeLessonIndex}
+                    timeSpent={elapsedTime}
+                    isBookmarked={bookmarkedLessons.includes(activeLessonId)}
+                    isLastLessonInLevel={isLastLessonInLevel}
+                    lessonNotes={currentLessonNotes}
+                    lessonRating={lessonRatings[activeLessonId]}
+                    onClose={() => setActiveLessonId(null)}
+                    onPrevLesson={() => {
+                        const prevIndex = activeLessonIndex - 1;
+                        if (prevIndex >= 0) setActiveLessonId(allLessons[prevIndex].id);
+                    }}
+                    onToggleBookmark={handleToggleBookmark}
+                    onAddNote={handleAddNote}
+                    onDeleteNote={handleDeleteNote}
+                    onComplete={(lessonId, score) => {
+                        const lessonIdx = allLessons.findIndex((l) => l.id === lessonId);
+                        
+                        if (isLastLessonInLevel) {
+                            const currentMainLevel = normalizeLevel(activeLessonWithLevel?.level);
+                            const currentSubLevel = activeLessonWithLevel?.subLevel || currentMainLevel;
+                            
+                            const remainingInMainLevel = orderedLessonsWithLevel.filter((l, idx) => idx > lessonIdx && normalizeLevel(l.level) === currentMainLevel);
+                            
+                            let completedLevelStr = currentSubLevel;
+                            let nextLevelStr = 'المستوى القادم قريباً!';
+
+                            if (remainingInMainLevel.length === 0) {
+                                completedLevelStr = `${currentMainLevel} بالكامل`;
+                                const nextMainLevel = LEVEL_ORDER.slice(LEVEL_ORDER.indexOf(currentMainLevel as any) + 1).find(
+                                    (candidate) => orderedLessonsWithLevel.some((x) => normalizeLevel(x.level) === candidate)
+                                );
+                                
+                                if (nextMainLevel) {
+                                    nextLevelStr = nextMainLevel;
+                                    if (!isProSubscriber) {
+                                        onRequirePro?.('إكمال المستويات والانتقال للمسار الكامل متاح لمشتركي برو. ترقّى للمتابعة من A2 فما فوق.');
+                                        return;
+                                    }
+                                }
+                            } else {
+                                const nextModuleLesson = orderedLessonsWithLevel.find((l, idx) => idx > lessonIdx && l.moduleId !== activeLessonWithLevel?.moduleId);
+                                if (nextModuleLesson) {
+                                    nextLevelStr = nextModuleLesson.subLevel || nextModuleLesson.level;
+                                }
+                            }
+
+                            setLevelCongratsModal({ 
+                                completedLevel: completedLevelStr, 
+                                nextLevel: nextLevelStr 
+                            });
+                        }
+
+                        if (lessonIdx < 0 || lessonIdx > sequentialCompletedCount) {
+                            return;
+                        }
+                        const baseCoins = 10;
+                        const bonusCoins = score ? Math.floor(score / 10) : 0;
+                        setCoins(prev => prev + baseCoins + bonusCoins);
+                        onCompleteLesson(lessonId, score);
+                    }}
+                    onRateLesson={handleRateLesson}
+                    speakText={(text) => speakText(text, learningLang)}
+                    t={parentT}
+                    dir={dir}
+                    formatTimeSpent={formatTimeSpent}
+                >
+                    <LessonView />
+                </LessonProvider>
+            </>
         );
     }
 
     return (
-        <div className="p-4 md:p-8 animate-slide-up pb-24 max-w-[1700px] mx-auto min-h-screen space-y-10">
-            {levelCongratsModal && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="w-full max-w-md rounded-3xl border border-amber-400/30 bg-slate-900/95 shadow-2xl p-7 text-center">
-                        <div className="text-5xl mb-3">🎉</div>
-                        <h3 className="text-2xl font-black text-white mb-2">مبروك! أنهيت مستوى {levelCongratsModal.completedLevel}</h3>
-                        <p className="text-amber-300 font-bold mb-5">
-                            جاري نقلك تلقائياً إلى المستوى التالي: {levelCongratsModal.nextLevel}
-                        </p>
-                        <button
-                            type="button"
-                            onClick={dismissLevelCongratsAndAdvance}
-                            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black transition-colors"
-                        >
-                            متابعة الآن
-                        </button>
-                    </div>
-                </div>
-            )}
-            {finalPathCongratsModal && (
-                <div className="fixed inset-0 z-[125] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="w-full max-w-xl rounded-3xl border border-emerald-400/30 bg-slate-900/95 shadow-2xl p-8 text-center">
-                        <div className="text-6xl mb-4">🏆</div>
-                        <h3 className="text-2xl md:text-3xl font-black text-white mb-3">
-                            برافو عليك! أنهيت كل مستويات المسار 🎉
-                        </h3>
-                        <p className="text-emerald-300 font-bold leading-relaxed mb-6">
-                            لأنك مستسلمتش وكمّلت للآخر، دلوقتي أنت جاهز تاخد خطوة جديدة في حياتك وتستخدم اللغة بثقة أكبر.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setFinalPathCongratsModal(false)}
-                            className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black transition-colors"
-                        >
-                            كمّل يا بطل 🚀
-                        </button>
-                    </div>
-                </div>
-            )}
+        <>
+            {modals}
+            <div className="p-4 md:p-8 animate-slide-up pb-24 max-w-[1700px] mx-auto min-h-screen space-y-10">
             <LearningPathHeader
                 t={parentT}
                 totalTime={getTotalTimeSpent()}
@@ -492,5 +794,6 @@ export const LearningPathView: React.FC<LearningPathViewProps> = ({
                 </div>
             )}
         </div>
+        </>
     );
 };

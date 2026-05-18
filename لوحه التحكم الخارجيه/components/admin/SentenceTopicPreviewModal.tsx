@@ -35,7 +35,7 @@ export const SentenceTopicPreviewModal: React.FC<SentenceTopicPreviewModalProps>
             if (isDirect) {
                 return (
                     <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10">
-                        <video src={mediaUrl} controls className="w-full h-full object-contain" />
+                        <video src={mediaUrl} controls controlsList="nodownload noplaybackrate" disablePictureInPicture onContextMenu={(e) => e.preventDefault()} className="w-full h-full object-contain" />
                     </div>
                 );
             }
@@ -47,8 +47,9 @@ export const SentenceTopicPreviewModal: React.FC<SentenceTopicPreviewModalProps>
         }
         if (topic.mediaType === 'image' && mediaUrl) {
             return (
-                <div className="aspect-video w-full rounded-xl overflow-hidden border border-white/10">
-                    <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+                <div className="aspect-video w-full rounded-xl overflow-hidden border border-white/10 relative bg-slate-900">
+                    <img src={mediaUrl} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" />
+                    <img src={mediaUrl} alt="" className="relative z-[1] w-full h-full object-contain p-3" />
                 </div>
             );
         }

@@ -8,6 +8,37 @@ import { auth } from './firebase';
 // 2. If logged in, syncs changes to Firestore in the background.
 
 const PREFIX = 'hcard_';
+const STORAGE_VERSION_KEY = `${PREFIX}storage_version`;
+const STORAGE_VERSION = 'clean-db-2026-05-17-v1';
+
+function clearStaleLocalCache(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (localStorage.getItem(STORAGE_VERSION_KEY) === STORAGE_VERSION) return;
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(PREFIX) && key !== STORAGE_VERSION_KEY)
+      .forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem(STORAGE_VERSION_KEY, STORAGE_VERSION);
+  } catch (e) {
+    console.warn('Local cache reset skipped:', e);
+  }
+}
+
+clearStaleLocalCache();
+
+function syncFirestoreBestEffort(finalKey: string, data: unknown): void {
+  void (async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const userDocRef = doc(firestore, 'users', currentUser.uid);
+        await setDoc(userDocRef, { [finalKey]: data }, { merge: true });
+      }
+    } catch (e) {
+      console.warn(`Firestore sync skipped (${finalKey}):`, e);
+    }
+  })();
+}
 
 export const db = {
   save: async (key: string, data: any, scope?: string): Promise<{ success: boolean, error?: string }> => {
@@ -16,15 +47,14 @@ export const db = {
       // 1. Local Save
       if (typeof window !== 'undefined') {
         const serialized = JSON.stringify(data);
-        localStorage.setItem(PREFIX + finalKey, serialized);
+        const storageKey = PREFIX + finalKey;
+        if (localStorage.getItem(storageKey) !== serialized) {
+          localStorage.setItem(storageKey, serialized);
+        }
       }
 
-      // 2. Cloud Sync (if user is logged in)
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        const userDocRef = doc(firestore, 'users', currentUser.uid);
-        await setDoc(userDocRef, { [finalKey]: data }, { merge: true });
-      }
+      // 2. Cloud Sync in the background so slow Firebase does not block the UI.
+      syncFirestoreBestEffort(finalKey, data);
 
       return { success: true };
     } catch (e: any) {

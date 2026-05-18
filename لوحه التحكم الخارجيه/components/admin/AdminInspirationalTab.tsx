@@ -54,7 +54,7 @@ export const DEFAULT_SLIDES: InspirationalSlide[] = [
 
 interface AdminInspirationalTabProps {
     slides: InspirationalSlide[];
-    setSlides: (slides: InspirationalSlide[]) => void;
+    setSlides: React.Dispatch<React.SetStateAction<InspirationalSlide[]>>;
     onDelete?: (updated: InspirationalSlide[]) => void;
     showToast: (msg: string, type: 'error' | 'success' | 'info') => void;
 }

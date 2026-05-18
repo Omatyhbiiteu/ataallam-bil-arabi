@@ -4,65 +4,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('animationsDefaultReducedV2') !== '1') {
+          localStorage.setItem('animationsEnabled', 'false');
+          localStorage.setItem('animationsDefaultReducedV2', '1');
+        }
+        if (localStorage.getItem('animationsEnabled') !== 'true') {
+          document.documentElement.classList.add('animations-disabled');
+        }
+      } catch (error) {
+        document.documentElement.classList.add('animations-disabled');
+      }
+    })();
+  </script>
 
   <!-- ════════════════════════════════════════════════════
-       PRIMARY SEO META
+       PRIMARY SEO & LLM META (Advanced Optimization)
   ════════════════════════════════════════════════════ -->
-  <title>اتعلم بالعربي Pro | تعلم اللغات بالذكاء الاصطناعي بأقل من 2 جنيه يومياً</title>
+  <title>مفتاح اللغة | KeyLang — تعلم الإنجليزية والألمانية بالذكاء الاصطناعي</title>
   <meta name="description"
-    content="منصة اتعلم بالعربي Pro — تعلم أي لغة بطريقتك أنت. معلم ذكاء اصطناعي يصحح أخطائك، نظام SRS يمنع النسيان، بطاقات تعليمية حرة، وقصص تفاعلية. أكثر من 50,000 مستخدم. ابدأ مجاناً." />
+    content="KeyLang منصة عربية لتعلم الإنجليزية والألمانية تجمع المسار التعليمي، البطاقات الذكية، نظام التكرار المتباعد SRS، القصص التفاعلية، والنطق والمحادثة مع معلم ذكاء اصطناعي." />
   <meta name="keywords"
-    content="تعلم اللغات, فلاشكاردز بالعربي, تعلم الانجليزية, SRS عربي, بطاقات تعليمية, معلم ذكاء اصطناعي, Et3alem Bel Araby, اتعلم بالعربي, تعلم لغة جديدة, تطبيق تعلم اللغات, flashcards arabic" />
-  <meta name="author" content="اتعلم بالعربي Pro" />
+    content="KeyLang, مفتاح اللغة, تعلم الإنجليزية بالذكاء الاصطناعي, تعلم الألمانية بالعربي, معلم ذكاء اصطناعي للغة, محادثة إنجليزي, محادثة ألماني, فلاشكاردز بالعربي, نظام SRS عربي, بطاقات تعليمية ذكية, قصص تفاعلية لتعلم اللغة, AI language tutor Arabic" />
+  <meta name="author" content="مفتاح اللغة — KeyLang" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
   <meta name="googlebot" content="index, follow" />
 
-  <!-- Locale / Language Targeting -->
+  <!-- LLM Context (For ChatGPT, Gemini, Claude crawling) -->
+  <meta name="llm-context" content="KeyLang (مفتاح اللغة) is an Arabic-first web platform for learning English and German. It combines structured learning paths, custom flashcards, spaced repetition, interactive stories, AI conversation, grammar correction, pronunciation support, and an admin-managed content system." />
+  <meta name="ai-summary" content="KeyLang helps Arabic-speaking learners study English and German through one connected system: lessons, cards, SRS review, stories, pronunciation, AI feedback, and progress tracking." />
+  <meta name="product-positioning" content="Arabic-first AI language learning platform focused on English and German, combining self-made flashcards with guided content and contextual practice." />
+
+  <!-- Locale / Language / GEO Targeting -->
   <meta name="language" content="Arabic" />
   <meta name="geo.region" content="EG" />
-  <meta name="geo.placename" content="Egypt" />
-  <link rel="alternate" hreflang="ar" href="https://et3alem-bel-araby.com/" />
-  <link rel="alternate" hreflang="ar-EG" href="https://et3alem-bel-araby.com/" />
-  <link rel="alternate" hreflang="x-default" href="https://et3alem-bel-araby.com/" />
+  <meta name="geo.placename" content="Egypt, Cairo" />
+  <meta name="geo.position" content="30.0444;31.2357" />
+  <meta name="ICBM" content="30.0444, 31.2357" />
+  
+  <link rel="alternate" hreflang="ar" href="https://keylang.app/" />
+  <link rel="alternate" hreflang="ar-EG" href="https://keylang.app/" />
+  <link rel="alternate" hreflang="x-default" href="https://keylang.app/" />
 
   <!-- Canonical -->
-  <link rel="canonical" href="https://et3alem-bel-araby.com/" />
+  <link rel="canonical" href="https://keylang.app/" />
 
   <!-- ════════════════════════════════════════════════════
        OPEN GRAPH (Facebook / LinkedIn / WhatsApp)
   ════════════════════════════════════════════════════ -->
-  <meta property="og:title" content="اتعلم بالعربي Pro | معلمك الذكي لإتقان أي لغة" />
+  <meta property="og:title" content="مفتاح اللغة | KeyLang — تعلم الإنجليزي والألماني بنظام واحد" />
   <meta property="og:description"
-    content="أنشئ مجلداتك، تحدث مع AI يصحح أخطائك، وراجع بنظام SRS ذكي. أكثر من 50,000 متعلم وثقوا بالمنصة. ابدأ مجاناً بأقل من 2 جنيه يومياً." />
+    content="أنشئ كروتك الخاصة، راجعها بنظام SRS، اقرأ قصصاً تفاعلية، وتحدث مع معلم AI يصحح أخطاءك ويشرح لك الإنجليزية والألمانية بالعربي." />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://et3alem-bel-araby.com/" />
-  <meta property="og:image" content="https://et3alem-bel-araby.com/og-image.png" />
+  <meta property="og:url" content="https://keylang.app/" />
+  <meta property="og:image" content="https://keylang.app/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="اتعلم بالعربي Pro - منصة تعلم اللغات بالذكاء الاصطناعي" />
-  <meta property="og:site_name" content="اتعلم بالعربي Pro" />
+  <meta property="og:image:alt" content="مفتاح اللغة KeyLang - منصة تعلم اللغات بالذكاء الاصطناعي" />
+  <meta property="og:site_name" content="مفتاح اللغة | KeyLang" />
   <meta property="og:locale" content="ar_EG" />
 
   <!-- ════════════════════════════════════════════════════
        TWITTER / X CARD
   ════════════════════════════════════════════════════ -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@et3alem_bel_araby" />
-  <meta name="twitter:creator" content="@et3alem_bel_araby" />
-  <meta name="twitter:title" content="اتعلم بالعربي Pro | تعلم اللغات بالذكاء الاصطناعي" />
+  <meta name="twitter:site" content="@KeyLangApp" />
+  <meta name="twitter:creator" content="@KeyLangApp" />
+  <meta name="twitter:title" content="مفتاح اللغة | KeyLang — تعلم الإنجليزية والألمانية بالذكاء الاصطناعي" />
   <meta name="twitter:description"
-    content="معلم AI يصحح لغتك، بطاقات تعليمية حرة، ومراجعة SRS تضمن عدم النسيان. أكثر من 50,000 متعلم. ابدأ مجاناً." />
-  <meta name="twitter:image" content="https://et3alem-bel-araby.com/og-image.png" />
-  <meta name="twitter:image:alt" content="اتعلم بالعربي Pro" />
+    content="مسار تعليمي، كروت ذكية، مراجعة SRS، قصص ونطق، ومحادثة AI في تجربة عربية واحدة للإنجليزي والألماني." />
+  <meta name="twitter:image" content="https://keylang.app/og-image.png" />
+  <meta name="twitter:image:alt" content="KeyLang Pro" />
 
   <!-- ════════════════════════════════════════════════════
        ICONS & THEME
   ════════════════════════════════════════════════════ -->
-  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <meta name="theme-color" content="#f97316" />
-  <meta name="msapplication-TileColor" content="#f97316" />
+  <meta name="theme-color" content="#f59e0b" />
+  <meta name="msapplication-TileColor" content="#f59e0b" />
 
   <!-- ════════════════════════════════════════════════════
        PERFORMANCE: Preload critical resources
@@ -70,43 +94,51 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" />
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Lexend:wght@300;400;500;600;700;800;900&family=Noto+Sans+Arabic:wght@400;500;600;700;800;900&display=swap" />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" />
-  <link rel="dns-prefetch" href="https://et3alem-bel-araby.com" />
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Lexend:wght@300;400;500;600;700;800;900&family=Noto+Sans+Arabic:wght@400;500;600;700;800;900&display=swap" />
+  <link rel="dns-prefetch" href="https://keylang.app" />
+
+  <script>
+    document.addEventListener('contextmenu', function (event) {
+      var target = event.target;
+      if (target && target.closest && target.closest('img, video, audio, .protected-media')) {
+        event.preventDefault();
+      }
+    }, true);
+    document.addEventListener('dragstart', function (event) {
+      var target = event.target;
+      if (target && target.closest && target.closest('img, video, audio, .protected-media')) {
+        event.preventDefault();
+      }
+    }, true);
+  </script>
 
   <!-- ════════════════════════════════════════════════════
-       SCHEMA.ORG — EDUCATIONAL ORGANIZATION
+       SCHEMA.ORG — EDUCATIONAL ORGANIZATION (LLM FRIENDLY)
   ════════════════════════════════════════════════════ -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "EducationalOrganization",
-    "name": "اتعلم بالعربي Pro",
-    "alternateName": ["Et3alem Bel Araby", "Et3alem Bel Arabi"],
-    "description": "منصة عربية متخصصة في تعلم اللغات باستخدام الذكاء الاصطناعي، نظام التكرار المتباعد SRS، والبطاقات التعليمية التفاعلية.",
-    "url": "https://et3alem-bel-araby.com",
+    "name": "مفتاح اللغة",
+    "alternateName": ["KeyLang", "Key Lang", "Miftah Al-Lugha"],
+    "description": "منصة عربية متخصصة في تعلم الإنجليزية والألمانية باستخدام المسارات التعليمية، البطاقات الذكية، نظام التكرار المتباعد (SRS)، القصص التفاعلية، والمحادثة مع الذكاء الاصطناعي.",
+    "url": "https://keylang.app",
     "logo": {
       "@type": "ImageObject",
-      "url": "https://et3alem-bel-araby.com/logo.png",
+      "url": "https://keylang.app/logo.png",
       "width": 512,
       "height": 512
     },
     "foundingDate": "2024",
-    "areaServed": "EG",
+    "areaServed": ["EG", "SA", "AE", "MENA"],
     "inLanguage": "ar",
     "sameAs": [
-      "https://twitter.com/et3alem_bel_araby",
-      "https://facebook.com/et3alem_bel_araby",
-      "https://instagram.com/et3alem_bel_araby"
-    ],
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "reviewCount": "50000",
-      "bestRating": "5",
-      "worstRating": "1"
-    }
+      "https://twitter.com/KeyLangApp",
+      "https://facebook.com/KeyLangApp",
+      "https://instagram.com/KeyLangApp"
+    ]
   }
   </script>
 
@@ -117,33 +149,64 @@
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "اتعلم بالعربي Pro",
-    "applicationCategory": "EducationApplication",
+    "name": "KeyLang Pro",
+    "applicationCategory": "EducationalApplication",
     "operatingSystem": "Web, iOS, Android",
     "inLanguage": "ar",
-    "url": "https://et3alem-bel-araby.com",
-    "description": "تطبيق ويب لتعلم اللغات يعتمد على الذكاء الاصطناعي، نظام SRS للمراجعة الذكية، والبطاقات التعليمية التفاعلية.",
+    "url": "https://keylang.app",
+    "description": "تطبيق ويب عربي لتعلم الإنجليزية والألمانية يجمع الدروس المنظمة، البطاقات التعليمية، المراجعة المتباعدة، القصص التفاعلية، النطق، ومحادثة الذكاء الاصطناعي.",
     "offers": {
       "@type": "Offer",
-      "price": "2.00",
+      "price": "59.00",
       "priceCurrency": "EGP",
       "priceValidUntil": "2026-12-31",
       "availability": "https://schema.org/InStock",
-      "description": "اشتراك شهري بأقل من 2 جنيه يومياً"
-    },
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "reviewCount": "50000",
-      "bestRating": "5"
+      "description": "اشتراك شهري يعادل أقل من 2 جنيه يومياً في مصر"
     },
     "featureList": [
-      "معلم ذكاء اصطناعي يصحح الأخطاء النحوية",
-      "نظام التكرار المتباعد SRS",
-      "بطاقات فلاش تعليمية مخصصة",
-      "قصص تفاعلية لاكثر من 12 لغة",
-      "نطق آلي فائق الدقة TTS",
-      "مراجعة يومية ذكية"
+      "مسارات تعلم منظمة للإنجليزية والألمانية",
+      "محادثة وشرح وتصحيح أخطاء باستخدام الذكاء الاصطناعي",
+      "بطاقات تعليمية مخصصة داخل مجلدات",
+      "نظام التكرار المتباعد Spaced Repetition System",
+      "قصص تفاعلية وسياق لغوي لتثبيت الكلمات",
+      "نطق آلي وتدريب على الاستماع",
+      "لوحة تحكم لإدارة المحتوى والقصص والدروس"
+    ]
+  }
+  </script>
+
+  <!-- ════════════════════════════════════════════════════
+       SCHEMA.ORG — FAQ PAGE (FOR GEO - GENERATIVE ENGINE OPTIMIZATION)
+  ════════════════════════════════════════════════════ -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "كيف يساعدني الذكاء الاصطناعي في موقع KeyLang (مفتاح اللغة)؟",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "يقدم KeyLang معلم ذكاء اصطناعي تفاعلي يصحح أخطاءك النحوية (Grammar)، يولد أمثلة حية لأي كلمة، ويتيح لك الدردشة الصوتية والكتابية كأنك تتحدث مع شخص أصلي (Native Speaker) لتكسر حاجز الخوف من التحدث باللغات الأجنبية."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "هل تطبيق KeyLang يحتوي على محتوى جاهز أم أستطيع إضافة كروتي الخاصة؟",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "كلا الأمرين! منصة KeyLang توفر مجلدات وقصص جاهزة للتعلم، وفي الوقت ذاته تمنحك الحرية المطلقة لإنشاء كروتك الخاصة (Flashcards) لتعلم المصطلحات التي تهمك في مجال عملك أو دراستك."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "ما هو نظام التكرار المتباعد (SRS) وكيف يضمن عدم نسيان الكلمات؟",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "نظام التكرار المتباعد (Spaced Repetition System) في KeyLang هو خوارزمية ذكية تتتبع تقييمك للأجوبة. إذا كان الكارت سهلاً سيتأخر في الظهور، وإذا كان صعباً سيظهر لك قريباً. هذه التقنية تضمن نقل الكلمات للذاكرة طويلة المدى وعدم نسيانها."
+        }
+      }
     ]
   }
   </script>
@@ -155,12 +218,12 @@
   {
     "@context": "https://schema.org",
     "@type": "Course",
-    "name": "تعلم اللغة الإنجليزية بالذكاء الاصطناعي",
-    "description": "تعلم الإنجليزية من الصفر حتى الاحتراف باستخدام البطاقات التعليمية، نظام SRS، ومعلم AI يصحح أخطائك ويولد أمثلة حية. +12 لغة مدعومة.",
+    "name": "تعلم الإنجليزية والألمانية بالذكاء الاصطناعي",
+    "description": "تعلم الإنجليزية أو الألمانية من الصفر حتى مستوى متقدم باستخدام دروس منظمة، بطاقات تعليمية، نظام SRS، قصص تفاعلية، ومعلم AI يصحح أخطاءك ويولد أمثلة حية.",
     "provider": {
       "@type": "EducationalOrganization",
-      "name": "اتعلم بالعربي Pro",
-      "url": "https://et3alem-bel-araby.com"
+      "name": "مفتاح اللغة | KeyLang",
+      "url": "https://keylang.app"
     },
     "inLanguage": "ar",
     "hasCourseInstance": {
@@ -173,7 +236,7 @@
       }
     },
     "educationalLevel": "جميع المستويات",
-    "teaches": ["مفردات اللغة الإنجليزية", "القواعد النحوية", "النطق الصحيح", "التحدث بثقة"],
+    "teaches": ["مفردات اللغة الإنجليزية", "مفردات اللغة الألمانية", "القواعد النحوية", "النطق الصحيح", "التحدث بثقة"],
     "offers": {
       "@type": "Offer",
       "price": "2.00",
@@ -193,10 +256,10 @@
     "mainEntity": [
       {
         "@type": "Question",
-        "name": "ما هو تطبيق اتعلم بالعربي؟",
+        "name": "ما هو تطبيق مفتاح اللغة KeyLang؟",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "اتعلم بالعربي Pro هي منصة ويب عربية لتعلم اللغات تعتمد على الذكاء الاصطناعي. تتيح لك إنشاء بطاقات تعليمية مخصصة، مراجعتها بنظام التكرار المتباعد (SRS)، والتحدث مع معلم AI يصحح أخطائك النحوية ويولد أمثلة حية. تدعم أكثر من 12 لغة بأقل من 2 جنيه يومياً."
+          "text": "KeyLang منصة ويب عربية لتعلم الإنجليزية والألمانية. تتيح لك إنشاء بطاقات تعليمية مخصصة، مراجعتها بنظام التكرار المتباعد (SRS)، قراءة قصص تفاعلية، والتحدث مع معلم AI يصحح أخطاءك ويشرح القواعد بالعربي."
         }
       },
       {
@@ -204,7 +267,7 @@
         "name": "كيف يساعدني الذكاء الاصطناعي في تعلم اللغات؟",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "معلم الذكاء الاصطناعي في اتعلم بالعربي Pro يتحدث معك، يصحح أخطاءك النحوية في الوقت الفعلي، يولد 3 أمثلة حية لأي كلمة تسأله عنها، ويشرح القواعد بلغة عربية واضحة."
+          "text": "معلم الذكاء الاصطناعي في KeyLang يتحدث معك، يصحح أخطاءك النحوية، يولد أمثلة حية لأي كلمة تسأله عنها، ويشرح القواعد بلغة عربية واضحة تناسب مستواك."
         }
       },
       {
@@ -220,12 +283,12 @@
         "name": "هل يحتوي التطبيق على محتوى جاهز؟",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "نعم! يوفر اتعلم بالعربي Pro مجلدات وقصصاً جاهزة من النظام، وفي نفس الوقت يمنحك حرية كاملة لإنشاء مجلداتك وبطاقاتك الخاصة بالكلمات التي تهمك في مجال عملك أو دراستك."
+          "text": "نعم. يوفر KeyLang مجلدات وقصصاً جاهزة من النظام، وفي نفس الوقت يمنحك حرية إنشاء مجلداتك وبطاقاتك الخاصة بالكلمات التي تهمك في مجال عملك أو دراستك."
         }
       },
       {
         "@type": "Question",
-        "name": "ما هو سعر الاشتراك في اتعلم بالعربي؟",
+        "name": "هل يمكن تجربة KeyLang مجاناً؟",
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "تبدأ أسعار الاشتراك من أقل من 2 جنيه مصري يومياً، مع إمكانية الاشتراك الشهري. تتوفر تجربة مجانية كاملة بدون الحاجة لبطاقة ائتمان."
@@ -250,15 +313,15 @@
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "اتعلم بالعربي Pro",
-    "alternateName": "Et3alem Bel Araby",
-    "url": "https://et3alem-bel-araby.com",
+    "name": "مفتاح اللغة | KeyLang",
+    "alternateName": "KeyLang",
+    "url": "https://keylang.app",
     "inLanguage": "ar",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://et3alem-bel-araby.com/search?q={search_term_string}"
+          "urlTemplate": "https://keylang.app/search?q={search_term_string}"
       },
       "query-input": "required name=search_term_string"
     }
@@ -284,69 +347,8 @@
   </script>
 
   <!-- ════════════════════════════════════════════════════
-       TAILWIND + CONFIG
+       LOCAL STYLES
   ════════════════════════════════════════════════════ -->
-  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Cairo', 'sans-serif'],
-          },
-          colors: {
-            primary: 'var(--primary-color, #c0392b)',
-            secondary: 'var(--secondary-color, #f39c12)',
-            accent: 'var(--accent-color, #e74c3c)',
-            success: '#27ae60',
-            info: '#2980b9',
-            background: 'var(--bg-color, #fffdf7)',
-            stone: {
-              50: '#fafaf9',
-              100: '#f5f5f4',
-              200: '#e7e5e4',
-              300: '#d6d3d1',
-            },
-            amber: {
-              50: '#fffbeb',
-              100: '#fef3c7',
-            },
-            card: 'var(--card-bg, #ffffff)',
-            dark: {
-              bg: 'var(--bg-color, #0f172a)',
-              card: 'var(--card-bg, #1e293b)',
-              border: 'var(--glass-border, #334155)',
-              text: 'var(--text-main, #f8fafc)'
-            }
-          },
-          boxShadow: {
-            'warm': '0 4px 20px -2px rgba(120, 113, 108, 0.08)',
-            'warm-lg': '0 10px 30px -3px rgba(120, 113, 108, 0.12)',
-            'warm-hover': '0 20px 25px -5px rgba(120, 113, 108, 0.15), 0 8px 10px -6px rgba(120, 113, 108, 0.1)',
-          },
-          animation: {
-            'fade-in': 'fadeIn 0.5s ease-out',
-            'slide-up': 'slideUp 0.4s ease-out',
-            'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
-            'bounce-custom': 'bounceCustom 0.5s',
-          },
-          keyframes: {
-            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-            slideUp: { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
-            shake: {
-              '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
-              '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
-              '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
-              '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
-            },
-            bounceCustom: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } }
-          }
-        }
-      }
-    }
-  </script>
-
   <!-- ════════════════════════════════════════════════════
        GLOBAL STYLES
   ════════════════════════════════════════════════════ -->
@@ -372,7 +374,7 @@
     }
 
     body {
-      font-family: 'Cairo', sans-serif;
+      font-family: var(--font-ui);
       background-color: #fffdf7;
       transition: background-color var(--app-transition-speed), color var(--app-transition-speed);
     }
@@ -435,27 +437,12 @@
     }
   </style>
 
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
-  }
-}
-  </script>
   <link rel="stylesheet" href="/index.css">
 </head>
 
 <body>
   <!-- Semantic main landmark for screen readers + SEO -->
-  <div id="root" role="main" aria-label="اتعلم بالعربي Pro - منصة تعلم اللغات"></div>
+  <div id="root" role="main" aria-label="مفتاح اللغة KeyLang - منصة عربية لتعلم الإنجليزية والألمانية"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
 

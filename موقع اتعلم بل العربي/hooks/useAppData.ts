@@ -118,6 +118,12 @@ export function useAppData(currentUser: User | null, setToast: (toast: { message
         return db.load('daily_mission', INITIAL_DAILY_MISSION, sc);
     });
 
+    const [gameXp, setGameXp] = useState<number>(() => {
+        const lang = currentUser?.targetLanguage === 'de' ? 'de' : 'en';
+        const sc = progressStorageScope(currentUser?.id, lang);
+        return db.load('game_xp', 0, sc);
+    });
+
     const registerDailyStoryCompleted = useCallback(() => {
         setDailyMissionState((prev) => {
             const today = localDateKey();
@@ -175,7 +181,11 @@ export function useAppData(currentUser: User | null, setToast: (toast: { message
             const [fRes, cRes] = await Promise.all([ContentAPI.getFolders(lang), ContentAPI.getCards(lang)]);
             const uid = String(currentUser.id);
             const flRaw = Array.isArray((fRes as any)?.folders) ? ((fRes as any).folders as Folder[]) : [];
-            const fl = flRaw.filter((f) => Boolean(f.isSystem) || String(f.userId ?? '') === uid);
+            const fl = flRaw.filter((f) => {
+                const isOwner = f.userId && String(f.userId) === uid;
+                const isOfficial = !f.userId || f.isSystem;
+                return isOwner || isOfficial;
+            });
             const allowedFolderIds = new Set(fl.map((f) => String(f.id)));
             const clRaw = Array.isArray((cRes as any)?.cards) ? ((cRes as any).cards as Card[]) : [];
             const cl = clRaw.filter((c) => allowedFolderIds.has(String(c.folderId)));
@@ -253,6 +263,7 @@ export function useAppData(currentUser: User | null, setToast: (toast: { message
         setDailyGoal(db.load('daily_goal', 20, sc));
         setStudyPlan(db.load('study_plan', null, sc));
         setDailyMissionState(db.load('daily_mission', INITIAL_DAILY_MISSION, sc));
+        setGameXp(db.load('game_xp', 0, sc));
 
         loadedLangRef.current = lang;
         lastPersistScopeRef.current = sc;
@@ -323,6 +334,7 @@ export function useAppData(currentUser: User | null, setToast: (toast: { message
     useEffect(() => { persistScoped('daily_goal', dailyGoal); }, [dailyGoal, learningLang, currentUser?.id]);
     useEffect(() => { persistScoped('study_plan', studyPlan); }, [studyPlan, learningLang, currentUser?.id]);
     useEffect(() => { persistScoped('daily_mission', dailyMissionState); }, [dailyMissionState, learningLang, currentUser?.id]);
+    useEffect(() => { persistScoped('game_xp', gameXp); }, [gameXp, learningLang, currentUser?.id]);
 
     // Persist global data
     useEffect(() => { db.save('coupons', coupons); }, [coupons]);
@@ -353,6 +365,7 @@ export function useAppData(currentUser: User | null, setToast: (toast: { message
         inspirationalSlides, setInspirationalSlides,
         refreshFoldersAndCardsFromApi,
         dailyMissionState,
+        gameXp, setGameXp,
         registerDailyStoryCompleted,
         registerDailyMastered,
     };

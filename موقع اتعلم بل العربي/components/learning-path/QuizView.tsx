@@ -14,7 +14,7 @@ const MediaPlayer: React.FC<{ url: string; type: 'image' | 'video' | 'audio' | '
     if (!url || type === 'none') return null;
 
     if (type === 'image') return (
-        <div className="w-full max-w-2xl mx-auto mb-6 rounded-[var(--radius-xl)] overflow-hidden shadow-lg border border-gray-100 dark:border-white/10 relative bg-gray-50 dark:bg-white/5 min-h-[200px] flex items-center justify-center group">
+        <div className="w-full mx-auto rounded-[var(--radius-xl)] overflow-hidden shadow-lg border border-gray-100 dark:border-white/10 relative bg-gray-50 dark:bg-white/5 min-h-[180px] sm:min-h-[220px] flex items-center justify-center group">
             <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${loading ? 'opacity-100' : 'opacity-0'}`}>
                 <Loader className="animate-spin text-[var(--brand-500)]" />
             </div>
@@ -22,13 +22,21 @@ const MediaPlayer: React.FC<{ url: string; type: 'image' | 'video' | 'audio' | '
                 src={url}
                 alt="Media"
                 onLoad={() => setLoading(false)}
-                className={`w-full h-auto max-h-[350px] object-cover transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
+                className={`w-full h-auto max-h-[40vh] object-contain transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
             />
         </div>
     );
     if (type === 'video') return (
-        <div className="w-full max-w-2xl mx-auto mb-6 rounded-[var(--radius-xl)] overflow-hidden shadow-lg border border-gray-100 dark:border-white/10 aspect-video bg-black relative">
-            <video src={url} controls className="w-full h-full" />
+        <div className="w-full mx-auto rounded-[var(--radius-xl)] overflow-hidden shadow-lg border border-gray-100 dark:border-white/10 aspect-video bg-black relative">
+            <video
+                src={url}
+                controls
+                controlsList="nodownload noplaybackrate"
+                disablePictureInPicture
+                preload="metadata"
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full h-full protected-media"
+            />
         </div>
     );
     if (type === 'audio') return (
@@ -36,7 +44,14 @@ const MediaPlayer: React.FC<{ url: string; type: 'image' | 'video' | 'audio' | '
             <div className="w-12 h-12 bg-white dark:bg-orange-600/20 rounded-full flex items-center justify-center text-[var(--brand-600)] dark:text-orange-400 shadow-sm">
                 <Music size={24} />
             </div>
-            <audio src={url} controls className="w-full accent-[var(--brand-600)]" />
+            <audio
+                src={url}
+                controls
+                controlsList="nodownload noplaybackrate"
+                preload="metadata"
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full accent-[var(--brand-600)]"
+            />
         </div>
     );
     return null;
@@ -136,7 +151,11 @@ export const QuizView: React.FC<QuizViewProps> = ({ onComplete }) => {
                     <div className="space-y-3 pt-2">
                         {passed ? (
                             <button
-                                onClick={onClose}
+                                onClick={() => {
+                                    if (quizResult && quizResult.score !== undefined) {
+                                        onComplete(quizResult.score);
+                                    }
+                                }}
                                 className="w-full py-4 bg-[var(--brand-600)] hover:bg-[var(--brand-700)] text-white rounded-[var(--radius-lg)] font-bold text-lg shadow-lg shadow-orange-200/50 dark:shadow-orange-900/40 transition-all hover:scale-[1.02] active:scale-95"
                             >
                                 إكمال ومتابعة 🚀
@@ -236,21 +255,21 @@ export const QuizView: React.FC<QuizViewProps> = ({ onComplete }) => {
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto no-scrollbar py-2" dir="rtl">
+            <div className="flex-1 overflow-y-auto no-scrollbar" dir="rtl">
                 <m.div
                     key={`${currentQuestionIndex}-${isRetryRound}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ ease: 'easeOut', duration: 0.3 }}
-                    className="max-w-3xl mx-auto min-h-full flex flex-col justify-start pt-4 pb-28 md:justify-center md:pb-32"
+                    className="max-w-4xl mx-auto min-h-full flex flex-col justify-center gap-4 py-4 pb-28"
                 >
                     {/* Retry badge on question */}
                     {isRetryRound && (
                         <m.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="flex justify-center mb-4"
+                            className="flex justify-center"
                         >
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs font-black border border-orange-200 dark:border-orange-500/30">
                                 <RefreshCw size={10} />
@@ -265,7 +284,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ onComplete }) => {
                     )}
 
                     {/* Question Text */}
-                    <h3 className="text-xl md:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white text-center mb-8 leading-relaxed drop-shadow-sm px-2">
+                    <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white text-center leading-relaxed drop-shadow-sm px-2">
                         {q.text}
                     </h3>
 
@@ -278,13 +297,16 @@ export const QuizView: React.FC<QuizViewProps> = ({ onComplete }) => {
                         ) : (
                             <>
                                 {q.type === 'multiple-choice' && (
-                                    <div className={`grid ${q.options && q.options.some(o => o.length > 30) ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-3 max-w-2xl mx-auto`}>
+                                    <div className={`grid ${q.options && q.options.some(o => o.length > 30) ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'} gap-3 sm:gap-4 w-full max-w-4xl mx-auto`}>
                                         {q.options?.map((opt, idx) => (
                                             <button
-                                                key={idx}
+                                                key={`${currentQuestionIndex}-opt-${idx}`}
                                                 disabled={isAnswered}
-                                                onClick={() => handleSelectAnswer(opt)}
-                                                className={`p-4 rounded-[var(--radius-lg)] border-2 text-right transition-all group relative overflow-hidden
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (!isAnswered) handleSelectAnswer(opt);
+                                                }}
+                                                className={`p-4 sm:p-5 min-h-[60px] sm:min-h-[72px] rounded-[var(--radius-lg)] border-2 text-right transition-all relative select-none w-full
                                                 ${currentSelectedAnswer === opt
                                                         ? (isAnswered
                                                             ? (opt === q.correctAnswer ? 'bg-green-500 border-green-500 text-white' : 'bg-red-500 border-red-500 text-white')
@@ -294,10 +316,10 @@ export const QuizView: React.FC<QuizViewProps> = ({ onComplete }) => {
                                                             : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-50 dark:hover:bg-white/10')
                                                     }`}
                                             >
-                                                <div className="flex items-center justify-between z-10 relative">
-                                                    <span className="font-bold text-base md:text-lg">{opt}</span>
-                                                    {isAnswered && opt === q.correctAnswer && <CheckCircle className="text-white fill-green-500/20" size={20} />}
-                                                    {isAnswered && currentSelectedAnswer === opt && opt !== q.correctAnswer && <AlertCircle className="text-white fill-red-500/20" size={20} />}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-bold text-sm sm:text-base md:text-lg leading-snug flex-1">{opt}</span>
+                                                    {isAnswered && opt === q.correctAnswer && <CheckCircle className="text-white fill-green-500/20 shrink-0" size={20} />}
+                                                    {isAnswered && currentSelectedAnswer === opt && opt !== q.correctAnswer && <AlertCircle className="text-white fill-red-500/20 shrink-0" size={20} />}
                                                 </div>
                                             </button>
                                         ))}

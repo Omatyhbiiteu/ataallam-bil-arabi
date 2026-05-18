@@ -32,7 +32,8 @@ class AdminStoriesController extends Controller
 
         $rows = Story::query()
             ->where('lang', $lang)
-            ->orderByDesc('updated_at')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->limit(700)
             ->get();
 
@@ -164,6 +165,7 @@ class AdminStoriesController extends Controller
             'tags' => is_array($s->tags) ? $s->tags : null,
             'viewCount' => $s->view_count,
             'isActive' => (bool) $s->is_active,
+            'createdAt' => optional($s->created_at)->toISOString(),
         ];
     }
 }

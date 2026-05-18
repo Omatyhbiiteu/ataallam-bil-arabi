@@ -26,13 +26,13 @@ const MediaPlayer: React.FC<{ url: string; type: 'image' | 'video' | 'audio' | '
                 src={url}
                 alt="Media"
                 onLoad={() => setLoading(false)}
-                className={`w-full h-auto max-h-[350px] object-cover transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
+                className={`w-full h-auto max-h-[350px] object-contain transition-opacity duration-500 ${loading ? 'opacity-0' : 'opacity-100'}`}
             />
         </div>
     );
     if (type === 'video') return (
         <div className="w-full max-w-2xl mx-auto mb-6 rounded-[var(--radius-xl)] overflow-hidden shadow-lg border border-gray-100 dark:border-white/10 aspect-video bg-black relative">
-            <video src={url} controls className="w-full h-full" />
+            <video src={url} controls controlsList="nodownload noplaybackrate" disablePictureInPicture onContextMenu={(e) => e.preventDefault()} className="w-full h-full" />
         </div>
     );
     if (type === 'audio') return (
@@ -442,7 +442,7 @@ export const LessonPreviewQuiz: React.FC<LessonPreviewQuizProps> = ({ lesson: ac
                                         </div>
                                     </div>
                                 )}
-                                {!['multiple-choice', 'true-false', 'text-input', 'order', 'checkbox'].includes(q.type) && q.type !== 'note' && q.type !== 'open' && (
+                                {!['multiple-choice', 'true-false', 'text-input', 'order', 'checkbox'].includes(q.type) && (
                                     <p className="text-center text-gray-500">نوع السؤال: {q.type}</p>
                                 )}
                             </>

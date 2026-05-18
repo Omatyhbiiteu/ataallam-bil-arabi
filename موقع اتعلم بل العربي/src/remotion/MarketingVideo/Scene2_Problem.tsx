@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
 
 const pains = [
     {
@@ -112,14 +112,12 @@ export const Problem = () => {
         <AbsoluteFill
             style={{
                 backgroundColor: '#07070d',
-                fontFamily: 'Cairo, system-ui, sans-serif',
+                fontFamily: 'var(--font-arabic), system-ui, sans-serif',
                 color: '#f8fafc',
                 direction: 'rtl',
                 overflow: 'hidden',
             }}
         >
-            <Audio src={staticFile('audio/scene2.mp3')} volume={1} />
-
             {/* Tension glow — static, no jitter */}
             <div
                 style={{

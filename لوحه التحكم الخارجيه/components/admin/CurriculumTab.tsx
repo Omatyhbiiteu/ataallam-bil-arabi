@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion as m, AnimatePresence } from 'framer-motion';
 import {
     BookOpen, Layers, Plus, Trash2, Video, Mic, FileText,
-    MoreVertical, Edit2, PlayCircle, Clock, CheckCircle, ChevronDown, ChevronUp, Eye
+    MoreVertical, Edit2, PlayCircle, Clock, CheckCircle, ChevronDown, ChevronUp, Eye, Star
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { Module, Lesson } from '../../types';
@@ -25,6 +25,15 @@ const generateId = () => {
         return crypto.randomUUID();
     }
     return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+};
+
+const ratingBadgeClasses: Record<string, string> = {
+    insufficient: 'bg-gray-500/10 text-gray-300 border-gray-500/20',
+    excellent: 'bg-green-500/10 text-green-300 border-green-500/25',
+    very_good: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+    average: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
+    weak: 'bg-orange-500/10 text-orange-300 border-orange-500/25',
+    very_bad: 'bg-red-500/10 text-red-300 border-red-500/25',
 };
 
 export const CurriculumTab: React.FC<CurriculumTabProps> = ({ curriculum, setCurriculum, learningLang, adminLang }) => {
@@ -593,6 +602,17 @@ export const CurriculumTab: React.FC<CurriculumTabProps> = ({ curriculum, setCur
                                                             )}
                                                             {lesson.questions && lesson.questions.length > 0 && (
                                                                 <span className="flex items-center gap-1 text-green-500"><CheckCircle size={10} /> {lesson.questions.length} سؤال</span>
+                                                            )}
+                                                            {lesson.ratingSummary && lesson.ratingSummary.ratingsCount > 0 && (
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-black ${
+                                                                        ratingBadgeClasses[lesson.ratingSummary.satisfaction.status] ?? ratingBadgeClasses.insufficient
+                                                                    }`}
+                                                                    title={`مؤشر الرضا: ${lesson.ratingSummary.satisfaction.label}`}
+                                                                >
+                                                                    <Star size={10} className="fill-current" />
+                                                                    {lesson.ratingSummary.averageRating.toFixed(1)} / {lesson.ratingSummary.ratingsCount}
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </div>

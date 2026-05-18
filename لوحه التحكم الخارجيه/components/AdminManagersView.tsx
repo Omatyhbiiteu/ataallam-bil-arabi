@@ -40,7 +40,7 @@ export const AdminManagersView: React.FC = () => {
             return null;
         }
     }, []);
-    const requiredSecurityCode = import.meta.env.VITE_ADMIN_PASSWORD || '123';
+    const requiredSecurityCode = import.meta.env.VITE_ADMIN_PASSWORD || 'change-this-security-code';
 
     const loadAdmins = async () => {
         try {

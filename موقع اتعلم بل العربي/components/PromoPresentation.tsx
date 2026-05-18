@@ -38,7 +38,7 @@ export const PromoPresentation: React.FC<PromoPresentationProps> = ({ onClose, o
                 <button
                     onClick={onClose}
                     className="absolute -top-4 md:-top-6 right-4 text-white/60 hover:text-white transition-colors z-[110] bg-white/10 p-2 rounded-full hover:bg-white/20"
-                    aria-label="إغلاق الفيديو"
+                    aria-label="إغلاق العرض الصامت"
                 >
                     <X size={24} />
                 </button>
@@ -63,20 +63,22 @@ export const PromoPresentation: React.FC<PromoPresentationProps> = ({ onClose, o
                                 controls
                                 autoPlay
                                 loop
+                                initiallyMuted
+                                showVolumeControls={false}
                             />
                         </div>
                         <div className="absolute inset-0 video-scanlines"></div>
                         <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/50 text-white text-[10px] md:text-xs font-black px-3 py-1.5 rounded-full border border-white/10 backdrop-blur">
                             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                            عرض تعريفي
+                            عرض صامت
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="text-center md:text-right">
-                        <h3 className="text-white text-xl md:text-2xl font-black">فيديو تعريفي خلال دقيقة</h3>
-                        <p className="text-white/70 text-sm md:text-base">شاهد كيف تتحول الدراسة إلى تجربة ممتعة ومركزة.</p>
+                        <h3 className="text-white text-xl md:text-2xl font-black">عرض تعريفي صامت خلال دقيقة</h3>
+                        <p className="text-white/70 text-sm md:text-base">شاهد كيف تتحول الدراسة إلى تجربة ممتعة ومركزة بدون صوت.</p>
                     </div>
                     <button
                         onClick={onSignUp}

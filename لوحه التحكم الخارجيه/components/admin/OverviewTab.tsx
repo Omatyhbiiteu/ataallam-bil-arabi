@@ -3,7 +3,7 @@ import React from 'react';
 import { BookOpen, Map, Layers, Activity, TrendingUp, ChevronRight, Star, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Story, Module, Card, AppTheme } from '../../types';
-import { THEMES_DATA } from '../ThemeVisuals';
+import { THEMES_DATA } from '../themeData';
 import { AdminStats } from './AdminStats';
 import { Shield, Zap } from 'lucide-react';
 

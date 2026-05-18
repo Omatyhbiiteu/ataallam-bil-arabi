@@ -1,8 +1,11 @@
 
 import React from 'react';
-import { BookOpen, X, Image as ImageIcon, UploadCloud, Save } from 'lucide-react';
+import { AlignLeft, AlignRight, BookOpen, Languages, X, Image as ImageIcon, UploadCloud, Save } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Story } from '../../types';
+import { UploadProgressBar } from './UploadProgressBar';
+
+type TextDirection = 'auto' | 'rtl' | 'ltr';
 
 interface StoryFormModalProps {
     isOpen: boolean;
@@ -11,6 +14,9 @@ interface StoryFormModalProps {
     setStory: (story: Partial<Story>) => void;
     onSave: () => void;
     onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    isUploadingImage?: boolean;
+    uploadProgress?: number;
+    uploadFileName?: string;
     storyLang: 'en' | 'de';
     setStoryLang: (lang: 'en' | 'de') => void;
     t: any;
@@ -23,6 +29,9 @@ export const StoryFormModal: React.FC<StoryFormModalProps> = ({
     setStory,
     onSave,
     onImageUpload,
+    isUploadingImage = false,
+    uploadProgress = 0,
+    uploadFileName,
     storyLang,
     setStoryLang,
     t
@@ -48,6 +57,43 @@ export const StoryFormModal: React.FC<StoryFormModalProps> = ({
         if (num === undefined) return undefined;
         return Math.min(10, Math.max(1, Math.round(num)));
     };
+
+    const contentDirection: TextDirection = story.contentDirection || 'auto';
+    const translationDirection: TextDirection = story.translationDirection || 'auto';
+    const directionOptions: Array<{ id: TextDirection; label: string; icon: React.ReactNode }> = [
+        { id: 'auto', label: 'تلقائي', icon: <Languages size={14} /> },
+        { id: 'rtl', label: 'RTL', icon: <AlignRight size={14} /> },
+        { id: 'ltr', label: 'LTR', icon: <AlignLeft size={14} /> },
+    ];
+    const textDirectionValue = (direction: TextDirection) => (direction === 'auto' ? 'auto' : direction);
+    const textAlignClass = (direction: TextDirection) => (
+        direction === 'rtl' ? 'text-right' : direction === 'ltr' ? 'text-left' : 'text-start'
+    );
+    const renderDirectionControl = (
+        title: string,
+        value: TextDirection,
+        onChange: (direction: TextDirection) => void
+    ) => (
+        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">{title}</div>
+            <div className="grid grid-cols-3 gap-2">
+                {directionOptions.map(option => (
+                    <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => onChange(option.id)}
+                        className={`h-10 rounded-xl text-[10px] font-black border transition-all inline-flex items-center justify-center gap-1.5 ${value === option.id
+                            ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-900/20'
+                            : 'bg-slate-900 border-white/5 text-gray-500 hover:text-gray-300'
+                            }`}
+                    >
+                        {option.icon}
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 bg-[#0B0D17]/90 backdrop-blur-2xl z-50 flex items-center justify-center p-4">
@@ -144,26 +190,45 @@ export const StoryFormModal: React.FC<StoryFormModalProps> = ({
                             </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 mr-2">{labels.imageLabel}</label>
                             <motion.div
-                                whileHover={{ scale: 1.02 }}
+                                whileHover={{ scale: isUploadingImage ? 1 : 1.02 }}
                                 className="bg-white/5 rounded-3xl border border-white/5 aspect-video relative group overflow-hidden cursor-pointer"
                             >
                                 {story.image ? (
-                                    <img src={story.image} className="w-full h-full object-cover" alt="" />
+                                    <>
+                                        <img src={story.image} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-40" alt="" aria-hidden="true" />
+                                        <img src={story.image} className="relative z-10 w-full h-full object-contain p-3" alt="" />
+                                    </>
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center text-gray-600">
                                         <ImageIcon size={40} className="mb-2" />
                                         <span className="text-xs font-bold">{labels.imageEmpty}</span>
                                     </div>
                                 )}
-                                <label className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer">
-                                    <UploadCloud size={32} className="text-white mb-2" />
-                                    <span className="text-sm font-black text-white">{story.image ? labels.imageChange : labels.imageUpload}</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={onImageUpload} />
-                                </label>
+                                {!isUploadingImage && (
+                                    <label className="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer">
+                                        <UploadCloud size={32} className="text-white mb-2" />
+                                        <span className="text-sm font-black text-white">{story.image ? labels.imageChange : labels.imageUpload}</span>
+                                        <input type="file" className="hidden" accept="image/*" onChange={onImageUpload} />
+                                    </label>
+                                )}
+                                {isUploadingImage && (
+                                    <label className="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center cursor-pointer">
+                                        <UploadCloud size={28} className="text-white mb-2 animate-pulse" />
+                                        <span className="text-xs font-black text-white">جاري الرفع...</span>
+                                        <input type="file" className="hidden" accept="image/*" onChange={onImageUpload} disabled />
+                                    </label>
+                                )}
                             </motion.div>
+                            {isUploadingImage && (
+                                <UploadProgressBar
+                                    progress={uploadProgress}
+                                    fileName={uploadFileName}
+                                    done={uploadProgress >= 100}
+                                />
+                            )}
                             <p className="text-[9px] text-center text-gray-600 font-bold uppercase tracking-tight">{labels.imageHint}</p>
                         </div>
                     </div>
@@ -171,17 +236,24 @@ export const StoryFormModal: React.FC<StoryFormModalProps> = ({
                     <div>
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 mr-2">{labels.descriptionLabel}</label>
                         <textarea
-                            className="w-full bg-slate-900 border border-white/5 p-5 rounded-3xl text-white font-bold outline-none focus:border-red-500/50 transition-all min-h-[80px] placeholder:text-gray-800"
+                            dir="auto"
+                            className="w-full bg-slate-900 border border-white/5 p-5 rounded-3xl text-white font-language font-bold outline-none focus:border-red-500/50 transition-all min-h-[80px] placeholder:text-gray-800"
                             placeholder={labels.descriptionPlaceholder}
                             value={story.description || ''}
                             onChange={e => setStory({ ...story, description: e.target.value })}
                         />
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {renderDirectionControl('اتجاه محتوى القصة', contentDirection, (direction) => setStory({ ...story, contentDirection: direction }))}
+                        {renderDirectionControl('اتجاه الترجمة', translationDirection, (direction) => setStory({ ...story, translationDirection: direction }))}
+                    </div>
+
                     <div>
                         <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 mr-2">{labels.contentLabel}</label>
                         <textarea
-                            className="w-full bg-slate-900 border border-white/5 p-6 rounded-[2.5rem] text-white font-medium outline-none focus:border-red-500/50 transition-all min-h-[250px] placeholder:text-gray-800 leading-relaxed"
+                            dir={textDirectionValue(contentDirection)}
+                            className={`w-full bg-slate-900 border border-white/5 p-6 rounded-[2.5rem] text-white font-language font-medium outline-none focus:border-red-500/50 transition-all min-h-[250px] placeholder:text-gray-800 leading-relaxed ${textAlignClass(contentDirection)}`}
                             placeholder={labels.contentPlaceholder}
                             value={story.content || ''}
                             onChange={e => setStory({ ...story, content: e.target.value })}
@@ -191,7 +263,8 @@ export const StoryFormModal: React.FC<StoryFormModalProps> = ({
                     <div>
                         <label className="block text-[10px] font-black text-red-500/60 uppercase tracking-widest mb-3 mr-2">{labels.translationLabel}</label>
                         <textarea
-                            className="w-full bg-white/5 border border-white/5 p-6 rounded-[2.5rem] text-white font-medium outline-none focus:border-red-500/50 transition-all min-h-[200px] placeholder:text-gray-800 leading-relaxed"
+                            dir={textDirectionValue(translationDirection)}
+                            className={`w-full bg-white/5 border border-white/5 p-6 rounded-[2.5rem] text-white font-language font-medium outline-none focus:border-red-500/50 transition-all min-h-[200px] placeholder:text-gray-800 leading-relaxed ${textAlignClass(translationDirection)}`}
                             placeholder={labels.translationPlaceholder}
                             value={story.translation || ''}
                             onChange={e => setStory({ ...story, translation: e.target.value })}

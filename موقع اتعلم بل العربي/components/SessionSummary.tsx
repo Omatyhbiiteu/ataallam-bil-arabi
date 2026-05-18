@@ -77,7 +77,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({ results, onClose
 
   // وظيفة المشاركة الفعلية
   const handleShare = async () => {
-    const text = `🏆 أنهيت جلسة مراجعة بـ اتعلم بالعربي!\n✅ كلمات تمت: ${results.totalReviewed}\n🎯 الدقة: ${accuracy}%\n🪅 الرتبة: ${rank.title} — ${rank.subtitle}\n⭐ النقاط: ${results.score}\n⏱️ الوقت: ${timeDisplay}`;
+    const text = `🏆 أنهيت جلسة مراجعة بـ KeyLang!\n✅ كلمات تمت: ${results.totalReviewed}\n🎯 الدقة: ${accuracy}%\n🪅 الرتبة: ${rank.title} — ${rank.subtitle}\n⭐ النقاط: ${results.score}\n⏱️ الوقت: ${timeDisplay}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: 'نتائج جلسة المراجعة', text });

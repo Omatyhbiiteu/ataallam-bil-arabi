@@ -165,7 +165,6 @@ export const useQuizLogic = ({ activeLesson, onComplete }: UseQuizLogicProps) =>
 
         if (passed) {
             confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-            onComplete(score);
         }
     };
 

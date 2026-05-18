@@ -8,7 +8,7 @@ interface StoriesTabProps {
     stories: Story[];
     onAddNew: () => void;
     onEdit: (story: Story) => void;
-    onDelete: (id: string) => void;
+    onDelete: (story: Story) => void;
     onManageQuestions: (id: string) => void;
     t: any;
 }
@@ -24,7 +24,7 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
     const labels = t.admin.stories;
     const [searchQuery, setSearchQuery] = useState('');
     const [levelFilter, setLevelFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('title_asc');
+    const [sortBy, setSortBy] = useState('created_asc');
 
     const levelRank = (level: string) => {
         const map: Record<string, number> = {
@@ -63,7 +63,17 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
             return true;
         });
 
+        const originalIndex = new Map(stories.map((story, index) => [story.id, index]));
+        const createdTime = (story: Story) => {
+            const raw = story.createdAt;
+            const time = raw ? Date.parse(raw) : Number.NaN;
+            return Number.isFinite(time) ? time : originalIndex.get(story.id) ?? 0;
+        };
+
         const sorted = [...filtered].sort((a, b) => {
+            if (sortBy === 'created_asc') {
+                return (createdTime(a) - createdTime(b)) || ((originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0));
+            }
             if (sortBy === 'title_asc') return (a.title || '').localeCompare(b.title || '');
             if (sortBy === 'title_desc') return (b.title || '').localeCompare(a.title || '');
             if (sortBy === 'level') return levelRank(a.subLevel || a.level) - levelRank(b.subLevel || b.level);
@@ -89,6 +99,7 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
     ];
 
     const sortOptions = [
+        { value: 'created_asc', label: labels.sortCreatedAsc || 'Oldest first' },
         { value: 'title_asc', label: labels.sortTitleAsc },
         { value: 'title_desc', label: labels.sortTitleDesc },
         { value: 'level', label: labels.sortLevel },
@@ -187,9 +198,10 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
                                 className="bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/5 overflow-hidden group hover:border-red-500/30 transition-all flex flex-col"
                             >
                                 <div className="relative h-56 overflow-hidden">
-                                    <img src={story.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                                    <div className="absolute bottom-4 right-4 left-4 flex justify-between items-end">
+                                    <img src={story.image} className="pointer-events-none absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-35" alt="" aria-hidden="true" />
+                                    <img src={story.image} className="pointer-events-none relative z-[1] w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-700" alt="" />
+                                    <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                                    <div className="absolute bottom-4 right-4 left-4 z-20 flex justify-between items-end">
                                         <div className="flex items-center gap-2">
                                             <span className="bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest uppercase">{levelLabel}</span>
                                             {(story as any)._langFlag && (
@@ -199,7 +211,7 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
                                             )}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => onDelete(story.id)} className="p-2.5 bg-black/40 backdrop-blur-md text-red-400 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>
+                                            <button type="button" onClick={() => onDelete(story)} className="p-2.5 bg-black/40 backdrop-blur-md text-red-400 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>
                                         </div>
                                     </div>
                                 </div>
@@ -274,12 +286,12 @@ export const StoriesTab: React.FC<StoriesTabProps> = ({
                         className="bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/5 overflow-hidden group hover:border-red-500/30 transition-all flex flex-col"
                     >
                         <div className="relative h-56 overflow-hidden">
-                            <img src={story.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                            <div className="absolute bottom-4 right-4 left-4 flex justify-between items-end">
+                            <img src={story.image} className="pointer-events-none w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                            <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                            <div className="absolute bottom-4 right-4 left-4 z-20 flex justify-between items-end">
                                 <span className="bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest uppercase">{story.level}</span>
                                 <div className="flex gap-2">
-                                    <button onClick={() => onDelete(story.id)} className="p-2.5 bg-black/40 backdrop-blur-md text-red-400 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>
+                                    <button type="button" onClick={() => onDelete(story)} className="p-2.5 bg-black/40 backdrop-blur-md text-red-400 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>
                                 </div>
                             </div>
                         </div>

@@ -2,6 +2,14 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Cloud } from './SharedElements';
 
+type ThemeLanguage = 'ar' | 'en' | 'de';
+
+const victoryGreetings: Record<ThemeLanguage, { title: string; subtitle: string; dir: 'rtl' | 'ltr'; lang: string }> = {
+    ar: { title: 'ذكرى نصر أكتوبر المجيد', subtitle: 'فخر وعزة وإرادة لا تنكسر', dir: 'rtl', lang: 'ar' },
+    en: { title: 'Glorious October Victory', subtitle: 'Pride, honor, and resilience', dir: 'ltr', lang: 'en' },
+    de: { title: 'Glorreicher Oktober-Sieg', subtitle: 'Stolz, Ehre und Stärke', dir: 'ltr', lang: 'de' },
+};
+
 // ============================================================
 // --- VICTORY OCTOBER THEME COMPONENTS ---
 // ============================================================
@@ -148,7 +156,9 @@ export const Firework: React.FC<{ delay: number; color: string; x: string; y: st
     </motion.div>
 );
 
-const VictoryOctoberTheme: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
+const VictoryOctoberTheme: React.FC<{ isDarkMode: boolean; targetLanguage?: ThemeLanguage }> = ({ isDarkMode, targetLanguage = 'ar' }) => {
+    const greeting = victoryGreetings[targetLanguage] ?? victoryGreetings.ar;
+
     return (
         <motion.div key="victory_l" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="absolute inset-0">
 
@@ -298,6 +308,8 @@ const VictoryOctoberTheme: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) 
             {/* Victory text */}
             <motion.div
                 className="absolute top-[12%] left-1/2 -translate-x-1/2 text-center pointer-events-none z-30 whitespace-nowrap"
+                dir={greeting.dir}
+                lang={greeting.lang}
                 animate={{ opacity: [0.8, 1, 0.8] }}
                 transition={{ duration: 3, repeat: Infinity }}
             >
@@ -307,14 +319,14 @@ const VictoryOctoberTheme: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) 
                         textShadow: '0 0 20px rgba(206,17,38,0.8), 0 0 40px rgba(255,215,0,0.6), 0 0 80px rgba(206,17,38,0.4)',
                         letterSpacing: '0.05em'
                     }}>
-                    🎖️ انتصار أكتوبر المجيد
+                    🎖️ {greeting.title}
                 </div>
                 <motion.div
                     className="text-yellow-400/70 text-xs font-bold mt-1 tracking-widest"
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
                 >
-                    ✦ ✦ ✦ ✦ ✦
+                    ✦ {greeting.subtitle} ✦
                 </motion.div>
             </motion.div>
         </motion.div>

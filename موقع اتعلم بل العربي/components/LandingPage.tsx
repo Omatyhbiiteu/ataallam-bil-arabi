@@ -1,29 +1,377 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform, useSpring, useMotionValue, useReducedMotion } from 'framer-motion';
-import { Brain, Zap, BookOpen, Globe, ArrowLeft, ShieldCheck, CheckCircle, Map, PlayCircle, Quote, Twitter, Facebook, Instagram, Linkedin, Mail, ChevronRight, Moon, Sun, Sparkles, X, ChevronDown, HelpCircle, Trophy, Rocket, Star, Minus, Plus, Menu } from 'lucide-react';
+import { motion, MotionConfig, useScroll, useTransform, useSpring, useMotionValue, useReducedMotion } from 'framer-motion';
+import { Brain, Zap, BookOpen, Globe, ArrowLeft, ShieldCheck, CheckCircle, Map, PlayCircle, Twitter, Facebook, Instagram, Linkedin, Mail, ChevronRight, Moon, Sun, Sparkles, X, ChevronDown, HelpCircle, Trophy, Rocket, Star, Minus, Plus, Menu, Quote } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { Logo } from './Logo';
-import { PromoPresentation } from './PromoPresentation';
-import { PaymentService, SubscriptionPlan } from '../services/paymentService';
+
+const PromoPresentation = React.lazy(() => import('./PromoPresentation').then(m => ({ default: m.PromoPresentation })));
 
 interface LandingPageProps {
     onLoginClick: () => void;
     isDarkMode: boolean;
     toggleTheme: () => void;
+    animationsEnabled?: boolean;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMode, toggleTheme }) => {
+const HERO_VIDEO_SRC = '/صفحه الهبوط/Hero.mp4';
+const landingVideoSlides = [
+    {
+        src: '/صفحه الهبوط/10.mp4',
+        title: 'جولة سريعة داخل تجربة التعلم',
+        label: 'عرض حي للمنصة',
+    },
+    {
+        src: '/صفحه الهبوط/11.mp4',
+        title: 'واجهة مصممة لتعلم أسهل وأسرع',
+        label: 'من داخل KeyLang',
+    },
+];
+
+const showcaseSlides = [
+    {
+        src: '/صفحه الهبوط/1.jpeg',
+        title: 'لوحة تعلم مركزة',
+        label: 'مسار واضح من أول دقيقة',
+    },
+    {
+        src: '/صفحه الهبوط/2.jpeg',
+        title: 'كروت ذكية',
+        label: 'مراجعة بصرية سهلة وسريعة',
+    },
+    {
+        src: '/صفحه الهبوط/3.jpeg',
+        title: 'تجربة عربية أنيقة',
+        label: 'واجهة مصممة للمتعلم العربي',
+    },
+    {
+        src: '/صفحه الهبوط/5.jpeg',
+        title: 'إدارة محتوى مرنة',
+        label: 'مجلدات وكلمات وقصص في مكان واحد',
+    },
+    {
+        src: '/صفحه الهبوط/6.jpeg',
+        title: 'متابعة تقدمك',
+        label: 'رحلة تعلم منظمة وقابلة للقياس',
+    },
+    {
+        src: '/صفحه الهبوط/AI_language_learning_platform_in…_202605140259.jpeg',
+        title: 'معلم ذكاء اصطناعي',
+        label: 'مساعدة فورية في التدريب والفهم',
+    },
+];
+
+const customerTestimonials = [
+    {
+        name: 'منة الله أحمد',
+        city: 'القاهرة',
+        role: 'طالبة تجارة',
+        initials: 'م أ',
+        text: 'كنت أبدأ مذاكرة الإنجليزية ثم أتوقف سريعًا. أكثر ما ساعدني هو أن البطاقات تعود في الوقت المناسب، والشرح بالعربية جعل تصحيح الأخطاء أسهل بكثير.',
+        result: 'تحولت المذاكرة اليومية إلى عادة ثابتة',
+        accent: 'from-amber-400 to-orange-500',
+    },
+    {
+        name: 'محمود خالد',
+        city: 'الإسكندرية',
+        role: 'مسؤول دعم عملاء',
+        initials: 'م خ',
+        text: 'طبيعة عملي تحتاج ردودًا سريعة بالإنجليزية. أنشأت مجلدات لمصطلحات العمل، وبعد فترة قصيرة أصبحت الجمل الأساسية حاضرة أثناء المحادثات.',
+        result: 'مفردات العمل أصبحت أسهل في الاستخدام',
+        accent: 'from-sky-400 to-cyan-500',
+    },
+    {
+        name: 'سارة ياسر',
+        city: 'المنصورة',
+        role: 'تستعد للسفر',
+        initials: 'س ي',
+        text: 'كنت أجد الألمانية صعبة في البداية. القصص القصيرة والنطق ساعداني على سماع الكلمات داخل سياق واضح بدل حفظها بشكل منفصل.',
+        result: 'بداية محادثات بسيطة بثقة أكبر',
+        accent: 'from-emerald-400 to-teal-500',
+    },
+    {
+        name: 'أحمد عبد الرحمن',
+        city: 'الجيزة',
+        role: 'مهندس برمجيات',
+        initials: 'أ ع',
+        text: 'أكثر ما أعجبني أن التجربة مباشرة وغير مشتتة. أراجع المطلوب، أضيف بطاقاتي الخاصة، وأنهي جلسة قصيرة بنتيجة واضحة.',
+        result: 'جلسات مراجعة مركزة تناسب اليوم المزدحم',
+        accent: 'from-violet-400 to-fuchsia-500',
+    },
+    {
+        name: 'ريم مصطفى',
+        city: 'طنطا',
+        role: 'مدرسة لغة',
+        initials: 'ر م',
+        text: 'استخدمت المنصة مع طلابي في مراجعة الكلمات المتكررة. وضوح التقدم ونظام المراجعة حسب المستوى شجعهم على الاستمرار.',
+        result: 'مناسب للتعلم الفردي والمتابعة التعليمية',
+        accent: 'from-rose-400 to-red-500',
+    },
+    {
+        name: 'يوسف سامي',
+        city: 'أسيوط',
+        role: 'طالب ثانوي',
+        initials: 'ي س',
+        text: 'كنت أحفظ كلمات كثيرة ثم أنساها بعد أيام. الآن لكل كلمة موعد مراجعة، وإذا نسيتها تعود مرة أخرى ضمن خطة منظمة.',
+        result: 'نسيان أقل ومراجعة أكثر وضوحًا',
+        accent: 'from-lime-400 to-green-500',
+    },
+];
+
+const heroDemoSlides = [
+    {
+        icon: Map,
+        eyebrow: 'مسار واضح',
+        title: 'ابدأ من مستواك وامش خطوة بخطوة',
+        description: 'اختار إنجليزي أو ألماني، وحدد مستواك، وخلي كل درس يقودك للكلمة التالية بدون تشتت.',
+        metric: 'A1 -> C1',
+        metricLabel: 'مستويات منظمة',
+        type: 'path',
+        message: 'اللغة لا تحتاج قفزة كبيرة، تحتاج عادة صغيرة كل يوم.',
+        accent: '#f59e0b',
+    },
+    {
+        icon: Zap,
+        eyebrow: 'SRS',
+        title: 'راجع قبل ما تنسى',
+        description: 'كل كارت له موعد مراجعة ذكي حسب أدائك، فتثبت الكلمات في الذاكرة بدل الحفظ المؤقت.',
+        metric: 'SRS',
+        metricLabel: 'مراجعة محسوبة',
+        type: 'cards',
+        message: 'الكلمات التي تراجعها في وقتها تتحول من معرفة مؤقتة لذاكرة حقيقية.',
+        accent: '#22c55e',
+    },
+    {
+        icon: Brain,
+        eyebrow: 'AI Tutor',
+        title: 'معلم ذكي يصحح ويشرح',
+        description: 'اكتب، اسأل، وتدرب على المحادثة. الذكاء الاصطناعي يشرح لك الخطأ بالعربي ويقترح صياغة أقوى.',
+        metric: 'AI',
+        metricLabel: 'تصحيح ومحادثة',
+        type: 'ai',
+        message: 'الغلط هنا مش مشكلة، الغلط هنا بداية الشرح الصح.',
+        accent: '#38bdf8',
+    },
+    {
+        icon: BookOpen,
+        eyebrow: 'Stories',
+        title: 'كلمات داخل سياق حي',
+        description: 'اقرأ قصصاً قصيرة، اسمع النطق، واحفظ الكلمات من داخل موقف مفهوم بدل قائمة جامدة.',
+        metric: 'EN/DE',
+        metricLabel: 'قصص ونطق',
+        type: 'story',
+        message: 'لما الكلمة تدخل قصة، تفتكر معناها وصوتها ومكانها.',
+        accent: '#fb7185',
+    },
+];
+
+const HeroSilentDemo: React.FC<{ isDarkMode: boolean; prefersReducedMotion: boolean | null }> = ({ isDarkMode, prefersReducedMotion }) => {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const active = heroDemoSlides[activeIndex];
+    const Icon = active.icon;
+
+    useEffect(() => {
+        if (prefersReducedMotion) return;
+        const timer = window.setInterval(() => {
+            setActiveIndex((index) => (index + 1) % heroDemoSlides.length);
+        }, 3600);
+        return () => window.clearInterval(timer);
+    }, [prefersReducedMotion]);
+
+    return (
+        <div className={`absolute inset-0 overflow-hidden ${isDarkMode ? 'bg-[#07070a]' : 'bg-[#111827]'}`} aria-label="عرض صامت لمميزات KeyLang">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(245,158,11,0.22),rgba(15,23,42,0.04)_38%,rgba(56,189,248,0.18))]" />
+            <div className="absolute inset-0 video-grain opacity-50" />
+            <div className="absolute inset-0 video-scanlines opacity-40" />
+
+            <div className="relative z-10 flex h-full flex-col p-2.5 sm:p-3 md:p-4 xl:p-5 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2.5 py-1.5 backdrop-blur">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]" />
+                        <span className="text-[10px] sm:text-xs font-black">عرض صامت للمميزات</span>
+                    </div>
+                    <div className="hidden md:flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-2.5 py-1.5 text-[10px] font-black text-white/70">
+                        بدون صوت
+                    </div>
+                </div>
+
+                <div className="mt-2 sm:mt-3 grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1.05fr_0.72fr] gap-2 md:gap-3">
+                    <div className="min-h-0 rounded-[1.15rem] md:rounded-[1.35rem] border border-white/10 bg-black/24 p-2.5 sm:p-3 md:p-4 backdrop-blur-md flex flex-col overflow-hidden">
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={active.title}
+                                initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -12 }}
+                                transition={{ duration: 0.45 }}
+                                className="flex flex-col h-full min-h-0"
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex min-w-0 items-start gap-2.5">
+                                        <div className="flex h-8 w-8 sm:h-10 sm:w-10 md:h-11 md:w-11 xl:h-12 xl:w-12 shrink-0 items-center justify-center rounded-xl md:rounded-2xl border border-white/10 bg-white/10" style={{ color: active.accent }}>
+                                            <Icon size={20} />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-[0.14em]" style={{ color: active.accent }}>{active.eyebrow}</p>
+                                            <h3
+                                                className="mt-0.5 text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl font-black leading-tight"
+                                                style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                            >
+                                                {active.title}
+                                            </h3>
+                                        </div>
+                                    </div>
+                                    <div className="hidden lg:block shrink-0 text-left">
+                                        <p className="text-xl font-black leading-none" style={{ color: active.accent }}>{active.metric}</p>
+                                        <p className="mt-1 text-[10px] font-bold text-white/55">{active.metricLabel}</p>
+                                    </div>
+                                </div>
+
+                                <p
+                                    className="mt-2 text-[11px] sm:text-xs md:text-sm xl:text-[15px] leading-5 md:leading-6 xl:leading-7 text-white/72 font-semibold"
+                                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                >
+                                    {active.description}
+                                </p>
+
+                                <div className="mt-2 sm:mt-3 flex-1 min-h-0 rounded-xl md:rounded-2xl border border-white/10 bg-white/[0.06] p-2 sm:p-3 overflow-hidden">
+                                    {active.type === 'path' && (
+                                        <div className="h-full flex flex-col justify-center gap-2">
+                                            {['A1', 'A2', 'B1', 'B2', 'C1'].map((level, index) => (
+                                                <div key={level} className="flex items-center gap-2">
+                                                    <span className="w-8 text-[10px] sm:text-xs font-black text-white/80">{level}</span>
+                                                    <div className="h-1.5 sm:h-2 flex-1 rounded-full bg-white/10 overflow-hidden">
+                                                        <motion.div
+                                                            className="h-full rounded-full"
+                                                            style={{ backgroundColor: active.accent }}
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${22 + index * 15}%` }}
+                                                            transition={{ duration: prefersReducedMotion ? 0 : 0.8, delay: index * 0.08 }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {active.type === 'cards' && (
+                                        <div className="grid h-full grid-cols-3 gap-2 items-center">
+                                            {['اليوم', 'قريباً', 'متقن'].map((label, index) => (
+                                                <motion.div
+                                                    key={label}
+                                                    initial={prefersReducedMotion ? false : { y: 20, opacity: 0 }}
+                                                    animate={{ y: 0, opacity: 1 }}
+                                                    transition={{ delay: index * 0.1 }}
+                                                    className="rounded-xl md:rounded-2xl border border-white/10 bg-white/10 p-2 text-center"
+                                                >
+                                                    <div className="mx-auto mb-2 h-8 w-8 rounded-lg md:rounded-xl bg-black/20 flex items-center justify-center">
+                                                        <Zap size={16} style={{ color: active.accent }} />
+                                                    </div>
+                                                    <p className="text-[10px] sm:text-xs font-black">{label}</p>
+                                                    <p className="mt-1 text-[9px] text-white/55">موعد مراجعة</p>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {active.type === 'ai' && (
+                                        <div className="h-full flex flex-col justify-center gap-1.5 text-[10px] sm:text-xs md:text-sm">
+                                            <div className="self-start max-w-[82%] rounded-xl md:rounded-2xl rounded-tr-md bg-white/10 px-2.5 py-1.5 text-white/75">
+                                                I go to work yesterday
+                                            </div>
+                                            <div className="self-end max-w-[86%] rounded-xl md:rounded-2xl rounded-tl-md px-2.5 py-1.5 font-bold text-slate-950" style={{ backgroundColor: active.accent }}>
+                                                I went to work yesterday
+                                            </div>
+                                            <div className="rounded-xl md:rounded-2xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-white/70">
+                                                السبب: مع yesterday نستخدم الماضي البسيط.
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {active.type === 'story' && (
+                                        <div className="h-full flex flex-col justify-between gap-2">
+                                            <div className="space-y-2">
+                                                <div className="h-2 w-4/5 rounded-full bg-white/25" />
+                                                <div className="h-2 w-full rounded-full bg-white/15" />
+                                                <div className="h-2 w-2/3 rounded-full bg-white/15" />
+                                            </div>
+                                            <div className="flex items-end gap-1 h-9 sm:h-11">
+                                                {[30, 54, 38, 68, 44, 78, 52, 62, 36, 58].map((height, index) => (
+                                                    <motion.span
+                                                        key={index}
+                                                        className="flex-1 rounded-full"
+                                                        style={{ backgroundColor: active.accent }}
+                                                        animate={prefersReducedMotion ? undefined : { height: [`${height * 0.55}%`, `${height}%`, `${height * 0.7}%`] }}
+                                                        transition={{ duration: 1.2, repeat: Infinity, delay: index * 0.06 }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] sm:text-xs font-black text-white/75">
+                                                <BookOpen size={14} style={{ color: active.accent }} />
+                                                اقرأ، اسمع، ثم احفظ من السياق
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="hidden lg:flex min-h-0 rounded-[1.35rem] border border-white/10 bg-white/[0.07] p-3 xl:p-4 backdrop-blur-md flex-col justify-between overflow-hidden">
+                        <div>
+                            <p className="text-[10px] font-black text-white/45 uppercase tracking-[0.18em]">Daily Flow</p>
+                            <div className="mt-3 xl:mt-4 space-y-2 xl:space-y-3">
+                                {['تعلم درس قصير', 'احفظ كلماتك', 'راجع في وقتها', 'تدرب مع AI'].map((step, index) => (
+                                    <div key={step} className="flex items-center gap-2 rounded-xl bg-black/16 px-2.5 py-1.5 xl:px-3 xl:py-2">
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black" style={{ backgroundColor: index === activeIndex ? active.accent : 'rgba(255,255,255,0.1)', color: index === activeIndex ? '#0f172a' : 'rgba(255,255,255,0.75)' }}>
+                                            {index + 1}
+                                        </span>
+                                        <span className="text-xs font-bold text-white/75">{step}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                            <p className="text-[11px] font-bold text-white/45">رسالة اليوم</p>
+                            <p
+                                className="mt-1.5 text-xs md:text-sm font-black leading-6"
+                                style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                            >
+                                {active.message}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5">
+                        {heroDemoSlides.map((slide, index) => (
+                            <button
+                                key={slide.title}
+                                type="button"
+                                aria-label={`عرض ميزة ${index + 1}`}
+                                onClick={() => setActiveIndex(index)}
+                                className={`h-2 rounded-full transition-all ${index === activeIndex ? 'w-8 bg-white' : 'w-2 bg-white/30 hover:bg-white/60'}`}
+                            />
+                        ))}
+                    </div>
+                    <p className="hidden sm:block min-w-0 truncate text-[10px] md:text-xs font-black text-white/55">تعلم قليل يومياً، لكن بذكاء.</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMode, toggleTheme, animationsEnabled = false }) => {
     const [isVideoOpen, setIsVideoOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(() => PaymentService.getSettings().plans || []);
-
-    // Re-read plans if localStorage changes (e.g. admin updates)
-    useEffect(() => {
-        const plans = PaymentService.getSettings().plans || [];
-        setSubscriptionPlans(plans);
-    }, []);
+    const [activeLandingVideoIndex, setActiveLandingVideoIndex] = useState(0);
+    const activeLandingVideo = landingVideoSlides[activeLandingVideoIndex];
+    const subscriptionPlans: Array<any> = [];
+    const goToPreviousLandingVideo = () => setActiveLandingVideoIndex((prev) => (prev - 1 + landingVideoSlides.length) % landingVideoSlides.length);
+    const goToNextLandingVideo = () => setActiveLandingVideoIndex((prev) => (prev + 1) % landingVideoSlides.length);
     const heroRef = useRef<HTMLDivElement>(null);
     const prefersReducedMotion = useReducedMotion();
+    const reduceMotion = !animationsEnabled || prefersReducedMotion;
 
     // Optimized Mouse Tracking using Motion Values (No Re-renders)
     const mouseX = useMotionValue(0);
@@ -35,7 +383,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
     const smoothY = useSpring(mouseY, springConfig);
 
     useEffect(() => {
-        if (prefersReducedMotion) return;
+        if (reduceMotion) return;
         const handleMouseMove = (e: MouseEvent) => {
             const { clientX, clientY } = e;
             const x = (clientX - window.innerWidth / 2) / 20;
@@ -45,13 +393,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
         };
         window.addEventListener('mousemove', handleMouseMove);
         return () => window.removeEventListener('mousemove', handleMouseMove);
-    }, [mouseX, mouseY, prefersReducedMotion]);
+    }, [mouseX, mouseY, reduceMotion]);
 
     const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
         e.preventDefault();
         const element = document.getElementById(id);
         if (element) {
-            element.scrollIntoView({ behavior: 'smooth' });
+            element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
         }
     };
 
@@ -77,7 +425,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
     const blobY2 = useTransform(smoothY, (v) => v * -0.5);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-[#0f172a] text-gray-900 dark:text-white font-sans transition-colors duration-300 overflow-x-hidden" dir="rtl">
+        <MotionConfig reducedMotion={reduceMotion ? 'always' : 'never'}>
+        <div className="site-responsive-root min-h-screen bg-white dark:bg-[#0f172a] text-gray-900 dark:text-white font-sans transition-colors duration-300 overflow-x-hidden" dir="rtl">
             {/* --- PAGE SCROLL PROGRESS --- */}
             <motion.div
                 className="fixed top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 z-[100] origin-right"
@@ -96,7 +445,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                         <Logo variant="bilingual" size="md" />
                     </motion.div>
 
-                    <div className="hidden md:flex items-center gap-8 text-sm font-bold text-gray-600 dark:text-gray-300">
+                    <div className="hidden md:flex items-center gap-6 lg:gap-8 text-sm lg:text-base font-bold text-gray-600 dark:text-gray-300">
                         <a href="#features" onClick={(e) => handleScrollTo(e, 'features')} className="hover:text-amber-500 transition">المميزات</a>
                         <a href="#method" onClick={(e) => handleScrollTo(e, 'method')} className="hover:text-amber-500 transition">كيف نعمل</a>
                         <a href="#testimonials" onClick={(e) => handleScrollTo(e, 'testimonials')} className="hover:text-amber-500 transition">آراء العملاء</a>
@@ -112,7 +461,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                             {isDarkMode ? <Sun size={18} className="text-amber-400 md:w-5 md:h-5" /> : <Moon size={18} className="text-blue-600 md:w-5 md:h-5" />}
                         </button>
 
-                        <button onClick={onLoginClick} className="btn-secondary h-9 md:h-[46px] px-3 md:px-5 text-xs md:text-base flex items-center gap-1.5 md:gap-2">
+                        <button onClick={onLoginClick} className="btn-secondary h-9 md:h-[46px] px-3 md:px-5 text-xs md:text-sm lg:text-base flex items-center gap-1.5 md:gap-2">
                             دخول <ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />
                         </button>
 
@@ -136,21 +485,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
                             className="fixed inset-0 z-[100] bg-white/80 dark:bg-[#0f172a]/90 backdrop-blur-xl flex flex-col p-6 md:hidden"
                         >
-                            <div className="flex justify-between items-center mb-10">
+                            <div className="flex justify-between items-center mb-8">
                                 <Logo variant="bilingual" size="md" />
                                 <button
                                     onClick={() => setIsMobileMenuOpen(false)}
                                     className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500 hover:text-red-500 transition"
                                 >
-                                    <X size={24} />
+                                    <X size={20} />
                                 </button>
                             </div>
 
-                            <div className="flex flex-col gap-6 text-2xl font-black text-center">
+                            <div className="flex flex-col gap-4 text-lg font-bold text-center mt-4">
                                 {[
                                     { id: 'features', label: 'المميزات' },
                                     { id: 'method', label: 'كيف نعمل' },
-                                    { id: 'pricing', label: 'الأسعار' },
+                                    { id: 'pricing', label: 'الفيديوهات' },
+                                    { id: 'testimonials', label: 'آراء العملاء' },
                                     { id: 'faq', label: 'الأسئلة الشائعة' }
                                 ].map((item, i) => (
                                     <motion.a
@@ -185,7 +535,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                 >
                                     ابدأ رحلتك الآن
                                 </button>
-                                <p className="text-sm text-gray-400">© 2026 اتعلم بالعربي Pro</p>
+                                <p className="text-sm text-gray-400">© 2026 KeyLang Pro</p>
                             </motion.div>
                         </motion.div>
                     )}
@@ -195,9 +545,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
             {/* --- HERO SECTION --- */}
             <section
                 ref={heroRef}
-                className={`relative pt-16 md:pt-28 pb-20 md:pb-32 overflow-hidden px-4 md:px-0 transition-colors duration-700 ${isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#fffdf7]'
+                className={`relative min-h-[calc(100svh-76px)] pt-16 md:pt-28 pb-20 md:pb-32 overflow-hidden px-4 md:px-0 transition-colors duration-700 ${isDarkMode ? 'bg-[#0c0c0e]' : 'bg-[#fffdf7]'
                     }`}
             >
+                {!reduceMotion && (
+                    <video
+                        className="absolute inset-0 h-full w-full object-cover opacity-70 dark:opacity-55 pointer-events-none"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                        aria-hidden="true"
+                    >
+                        <source src={HERO_VIDEO_SRC} type="video/mp4" />
+                    </video>
+                )}
+                <div className={`absolute inset-0 ${isDarkMode ? 'bg-[#050507]/68' : 'bg-white/62'}`}></div>
+                <div className={`absolute inset-0 bg-gradient-to-b ${isDarkMode ? 'from-[#050507]/80 via-[#050507]/55 to-[#0c0c0e]' : 'from-white/85 via-[#fffdf7]/55 to-[#fffdf7]'}`}></div>
+
                 {/* Dynamic Interactive Background Elements */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
                     <motion.div
@@ -213,12 +579,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
 
                     {/* Animated Floating Blobs */}
                     <motion.div
-                        className={`absolute top-1/4 left-1/4 w-72 h-72 rounded-full blur-3xl opacity-30 ${prefersReducedMotion ? '' : 'animate-blob'} ${isDarkMode ? 'bg-primary/30' : 'bg-red-200/50'
+                        className={`absolute top-1/4 left-1/4 w-72 h-72 rounded-full blur-3xl opacity-30 ${reduceMotion ? '' : 'animate-blob'} ${isDarkMode ? 'bg-primary/30' : 'bg-red-200/50'
                             }`}
                         style={{ x: blobX1, y: blobY1 }}
                     />
                     <motion.div
-                        className={`absolute top-1/2 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-30 ${prefersReducedMotion ? '' : 'animate-blob animation-delay-2000'} ${isDarkMode ? 'bg-orange-500/20' : 'bg-amber-100/50'
+                        className={`absolute top-1/2 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-30 ${reduceMotion ? '' : 'animate-blob animation-delay-2000'} ${isDarkMode ? 'bg-orange-500/20' : 'bg-amber-100/50'
                             }`}
                         style={{ x: blobX2, y: blobY2 }}
                     />
@@ -227,15 +593,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                     <div className={`absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] ${isDarkMode ? 'invert-0' : 'invert'}`}></div>
                 </div>
 
-                <div className="max-w-7xl mx-auto px-2 md:px-6 relative z-10 text-center">
-                    <div className="flex flex-col lg:flex-row items-center justify-between gap-12 mt-10">
+                <div className="max-w-7xl xl:max-w-[1500px] mx-auto px-2 md:px-6 xl:px-8 relative z-10 text-center">
+                    <div className="flex flex-col lg:flex-row items-center justify-between gap-12 xl:gap-16 mt-10">
                         {/* Text Content */}
-                        <div className="lg:w-1/2 text-right">
+                        <div className="w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl mx-auto lg:mx-0 lg:w-[46%] xl:w-[42%] text-center lg:text-right">
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ duration: 0.6 }}
-                                className={`inline-flex items-center gap-2 border px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-sm font-bold backdrop-blur-md shadow-xl mb-4 md:mb-6 ${isDarkMode
+                                className={`inline-flex items-center gap-2 border px-3 py-1.5 md:px-4 md:py-2 rounded-full text-[10px] md:text-sm font-bold backdrop-blur-md shadow-xl mb-4 md:mb-6 mx-auto lg:mx-0 ${isDarkMode
                                     ? 'bg-white/5 border-white/10 text-gray-300'
                                     : 'bg-orange-50/50 border-orange-100 text-orange-800'
                                     }`}
@@ -248,28 +614,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                 initial={{ opacity: 0, x: 30 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.8, delay: 0.2 }}
-                                className={`text-3xl md:text-6xl lg:text-7xl font-black mb-4 md:mb-6 leading-[1.3] tracking-tight ${isDarkMode ? 'text-white text-glow' : 'text-gray-900'
+                                className={`text-[2.15rem] sm:text-5xl md:text-6xl lg:text-7xl font-black mb-4 md:mb-6 leading-[1.22] md:leading-[1.3] tracking-tight ${isDarkMode ? 'text-white text-glow' : 'text-gray-900'
                                     }`}
                             >
-                                صمم مسارك في <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600">تعلم اللغات</span>
+                                تعلم الإنجليزي والألماني <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600">بنظام يناسبك فعلاً</span>
                             </motion.h1>
 
                             <motion.p
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.8, delay: 0.4 }}
-                                className={`text-base md:text-lg lg:text-xl mb-8 md:mb-10 leading-relaxed font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                className={`max-w-xl mx-auto lg:mx-0 text-base md:text-lg lg:text-xl mb-8 md:mb-10 leading-relaxed font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                                     }`}
                             >
-                                أنت لست مقيداً بمسار واحد! أنشئ مجلداتك، أضف كروتك الخاصة، وتحدث مع معلم الذكاء الاصطناعي ليراجع أخطائك ويشرح قواعدك في الوقت الفعلي.
+                                KeyLang يجمع المسار التعليمي، الكروت الذكية، المراجعة المتباعدة، القصص، والمحادثة مع الذكاء الاصطناعي في تجربة عربية واحدة مصممة لمن يتعلم الإنجليزية أو الألمانية بجدية.
                             </motion.p>
 
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.8, delay: 0.6 }}
-                                className="flex flex-col sm:flex-row items-center gap-3 md:gap-4 mb-4"
+                                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 md:gap-4 mb-4"
                             >
                                 <button
                                     onClick={onLoginClick}
@@ -281,7 +647,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                 <button
                                     onClick={() => setIsVideoOpen(true)}
                                     className="group relative w-full sm:w-auto"
-                                    aria-label="شاهد الفيديو التعريفي للمنصة"
+                                    aria-label="شاهد العرض الصامت للمنصة"
                                 >
                                     <span className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-amber-500/70 via-orange-500/50 to-amber-500/70 opacity-40 blur-sm transition group-hover:opacity-70"></span>
                                     <span className={`relative flex items-center justify-center gap-4 px-4 md:px-5 h-12 md:h-[52px] rounded-2xl border backdrop-blur-xl transition group-hover:-translate-y-0.5 ${isDarkMode ? 'bg-[#0f172a]/70 border-white/10 text-white' : 'bg-white/80 border-amber-200/70 text-gray-900'}`}>
@@ -291,8 +657,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                             <PlayCircle size={18} className="relative md:w-5 md:h-5" />
                                         </span>
                                         <span className="text-right leading-tight">
-                                            <span className="block text-sm md:text-base font-black">شاهد الفيديو</span>
-                                            <span className={`block text-[11px] md:text-xs font-bold ${isDarkMode ? 'text-amber-200/80' : 'text-amber-700/80'}`}>60 ثانية ⬢ كيف يعمل فعلياً</span>
+                                            <span className="block text-sm md:text-base font-black">شاهد العرض الصامت</span>
+                                            <span className={`block text-[11px] md:text-xs font-bold ${isDarkMode ? 'text-amber-200/80' : 'text-amber-700/80'}`}>مميزات ورسائل تحفيزية</span>
                                         </span>
                                     </span>
                                 </button>
@@ -304,51 +670,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                             initial={{ opacity: 0, scale: 0.8, rotateY: 15 }}
                             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
                             transition={{ duration: 1.2, ease: "easeOut" }}
-                            className="w-full lg:w-1/2 relative flex justify-center perspective mt-12 md:mt-8 lg:mt-0"
+                            className="w-full max-w-full lg:w-[54%] xl:w-[58%] relative flex justify-center perspective mt-12 md:mt-8 lg:mt-0"
                         >
-                            <div className="relative w-full flex items-center justify-center z-30 px-4">
-                                <div className="relative w-full max-w-[640px]">
-                                    <div className={`absolute -inset-6 md:-inset-10 rounded-[3rem] blur-3xl ${isDarkMode ? 'bg-amber-500/20' : 'bg-amber-200/60'}`}></div>
+                            <div className="relative w-full flex items-center justify-center z-30 px-4 xl:px-0">
+                                <div className="relative w-full max-w-[calc(100vw-2rem)] md:max-w-[640px] lg:max-w-[740px] xl:max-w-[860px] 2xl:max-w-[920px]">
+                                    <div className={`absolute -inset-6 md:-inset-10 xl:-inset-14 rounded-[3rem] blur-3xl ${isDarkMode ? 'bg-amber-500/20 xl:bg-amber-500/24' : 'bg-amber-200/60'}`}></div>
+                                    <div className={`hidden xl:block absolute -inset-[2px] rounded-[2.85rem] ${isDarkMode ? 'bg-white/[0.05]' : 'bg-white/70'} shadow-[0_45px_120px_-55px_rgba(15,23,42,0.9)]`}></div>
 
-                                    <div className="relative rounded-[2.5rem] p-[1px] bg-gradient-to-br from-amber-500/60 via-orange-500/30 to-blue-500/40 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.7)]">
-                                        <div className={`relative aspect-video rounded-[2.5rem] overflow-hidden border ${isDarkMode ? 'bg-[#0b0b0f] border-white/10' : 'bg-white border-amber-200/60'}`}>
-                                            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/15 via-transparent to-blue-500/20"></div>
-                                            <div className="absolute inset-0 video-grain"></div>
-                                            <div className="absolute inset-0 video-scanlines"></div>
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent"></div>
-
-                                            <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/50 text-white text-[10px] md:text-xs font-black px-3 py-1.5 rounded-full border border-white/10 backdrop-blur">
-                                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                                                عرض تجريبي
+                                    <div className="relative rounded-[2.5rem] xl:rounded-[2.85rem] p-[1px] bg-gradient-to-br from-amber-500/60 via-orange-500/30 to-blue-500/40 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.7)] xl:shadow-[0_38px_110px_-46px_rgba(15,23,42,0.92)]">
+                                        <div className={`relative aspect-[4/3] sm:aspect-video xl:aspect-[16/10] rounded-[2.5rem] xl:rounded-[2.85rem] overflow-hidden border ${isDarkMode ? 'bg-[#0b0b0f] border-white/10' : 'bg-white border-amber-200/60'}`}>
+                                            <div dir="ltr" className={`hidden xl:flex absolute inset-x-0 top-0 z-20 h-11 items-center justify-between border-b px-5 backdrop-blur-xl ${isDarkMode ? 'border-white/10 bg-[#07070a]/82 text-white' : 'border-amber-200/60 bg-white/82 text-slate-900'}`}>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="h-3 w-3 rounded-full bg-red-400/90" />
+                                                    <span className="h-3 w-3 rounded-full bg-amber-400/90" />
+                                                    <span className="h-3 w-3 rounded-full bg-emerald-400/90" />
+                                                </div>
+                                                <div className={`flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black ${isDarkMode ? 'border-white/10 bg-white/10 text-white/72' : 'border-slate-900/10 bg-slate-900/10 text-slate-700'}`}>
+                                                    KeyLang Demo
+                                                </div>
+                                                <div className={`text-[11px] font-black ${isDarkMode ? 'text-amber-300' : 'text-amber-700'}`}>Silent Product Preview</div>
                                             </div>
-
-                                            <button
-                                                onClick={() => setIsVideoOpen(true)}
-                                                className="group absolute inset-0 flex items-center justify-center"
-                                                aria-label="تشغيل الفيديو التعريفي"
-                                            >
-                                                <span className="relative flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-amber-500 text-black shadow-2xl">
-                                                    <span className="play-ring"></span>
-                                                    <span className="play-ring play-ring-delay"></span>
-                                                    <PlayCircle size={28} className="relative md:w-9 md:h-9" />
-                                                </span>
-                                            </button>
-
-                                            <div className="absolute bottom-5 right-5 left-5 flex items-end justify-between gap-4">
-                                                <div className="text-right">
-                                                    <p className="text-white text-sm md:text-base font-black">لقطة من داخل الدروس</p>
-                                                    <p className="text-amber-300/90 text-[11px] md:text-xs font-bold">60 ثانية ⬢ مشاهدة حقيقية للمتجربة</p>
-                                                </div>
-                                                <div className="hidden sm:flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/60 font-bold">
-                                                    <span className="px-3 py-1 rounded-full border border-white/10 bg-white/5">HD</span>
-                                                    <span className="px-3 py-1 rounded-full border border-white/10 bg-white/5">01:00</span>
-                                                </div>
+                                            <div className="absolute inset-0 xl:top-11">
+                                                <HeroSilentDemo isDarkMode={isDarkMode} prefersReducedMotion={reduceMotion} />
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold">
-                                        {['معلم ذكاء اصطناعي', 'بناء الكروت بحرية', 'نطق آلي دقيق'].map((item, i) => (
+                                        {['عرض صامت', 'مميزات حقيقية', 'رسائل تحفيزية'].map((item, i) => (
                                             <div key={i} className={`px-4 py-2 rounded-full border ${isDarkMode ? 'bg-white/5 border-white/10 text-white/80' : 'bg-white/80 border-amber-200/60 text-gray-700'} backdrop-blur`}>
                                                 {item}
                                             </div>
@@ -361,13 +710,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                     </div>
 
 
-                    {/* Stats Section with Scroll Animation */}
-                    <div className="mt-20 pt-12 border-t border-gray-200/10 dark:border-white/5 grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 max-w-5xl mx-auto">
+                    {/* Product Signals Section with Scroll Animation */}
+                    <div className="mt-20 pt-12 border-t border-gray-200/10 dark:border-white/5 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 max-w-5xl mx-auto">
                         {[
-                            { num: '+50k', label: 'مستخدم نشط', icon: <Quote className="text-amber-500 opacity-20 absolute -top-4 -right-2" size={40} /> },
-                            { num: '+1M', label: 'كلمة محفوظة' },
-                            { num: '4.9/5', label: 'تقييم المستخدمين' },
-                            { num: '+12', label: 'لغة مدعومة' }
+                            { num: 'EN/DE', label: 'إنجليزي وألماني بتركيز كامل' },
+                            { num: 'A1-C1', label: 'مستويات منظمة من البداية للتقدم' },
+                            { num: 'SRS', label: 'مراجعة محسوبة قبل ما تنسى' },
+                            { num: 'AI', label: 'تصحيح ونطق ومحادثة تفاعلية' }
                         ].map((stat, i) => (
                             <motion.div
                                 key={i}
@@ -375,12 +724,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                                className="relative group"
+                                className={`relative group rounded-2xl md:rounded-3xl px-4 py-5 md:px-5 md:py-6 border text-center backdrop-blur ${isDarkMode ? 'bg-white/[0.04] border-white/10' : 'bg-white/75 border-amber-100/80 shadow-sm'
+                                    }`}
                             >
-                                <div className={`text-4xl md:text-6xl font-black mb-2 tracking-tighter group-hover:text-amber-500 transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'
+                                <div className={`text-3xl md:text-5xl font-black mb-2 tracking-normal group-hover:text-amber-500 transition-colors duration-300 ${isDarkMode ? 'text-white' : 'text-gray-900'
                                     }`}>{stat.num}</div>
-                                <div className="text-xs md:text-sm text-gray-500 font-bold uppercase tracking-widest">{stat.label}</div>
-                                {stat.icon && stat.icon}
+                                <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-bold leading-6">{stat.label}</div>
                             </motion.div>
                         ))}
                     </div>
@@ -391,12 +740,72 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                     }`}></div>
             </section>
 
+            {/* --- INTERACTIVE 3D LEARNING SECTION --- */}
+            <section className={`relative overflow-hidden py-16 md:py-24 ${isDarkMode ? 'bg-[#0f172a]' : 'bg-[#fffdf7]'}`}>
+                <div className={`absolute inset-0 ${isDarkMode ? 'bg-[radial-gradient(circle_at_20%_10%,rgba(245,158,11,0.16),transparent_32%),radial-gradient(circle_at_85%_20%,rgba(59,130,246,0.12),transparent_28%)]' : 'bg-[radial-gradient(circle_at_20%_10%,rgba(245,158,11,0.16),transparent_32%),radial-gradient(circle_at_85%_20%,rgba(59,130,246,0.10),transparent_28%)]'}`} />
+                <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6">
+                    <motion.div
+                        initial={reduceMotion ? false : { opacity: 0, y: 36 }}
+                        whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-80px' }}
+                        transition={{ duration: 0.8, ease: 'easeOut' }}
+                        className={`grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] items-center gap-8 md:gap-12 rounded-[2rem] md:rounded-[2.75rem] border p-5 md:p-8 lg:p-10 overflow-hidden shadow-[0_30px_90px_-50px_rgba(15,23,42,0.75)] ${isDarkMode ? 'bg-black/30 border-white/10' : 'bg-white/75 border-amber-100/80'}`}
+                    >
+                        <div className="relative z-10 text-center lg:text-right">
+                            <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs md:text-sm font-black mb-5 ${isDarkMode ? 'bg-white/5 border-white/10 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                                <Sparkles size={16} />
+                                تجربة تفاعلية من أول دقيقة
+                            </div>
+                            <h2 className={`text-3xl md:text-5xl font-black leading-tight mb-5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                شوف التعلم وهو بيتحرك قدامك
+                            </h2>
+                            <p className={`text-base md:text-lg leading-8 font-medium mb-7 max-w-xl mx-auto lg:mx-0 ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                مشهد ثلاثي الأبعاد يلمّح لفكرة المنصة: كروت، تركيز، تقدم، وتجربة حديثة تخلي رحلة اللغة أخف وأوضح.
+                            </p>
+                            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
+                                <button onClick={onLoginClick} className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2">
+                                    ابدأ التعلم الآن <Rocket size={18} />
+                                </button>
+                                <a
+                                    href="#features"
+                                    onClick={(e) => handleScrollTo(e, 'features')}
+                                    className={`w-full sm:w-auto h-12 px-5 rounded-2xl flex items-center justify-center gap-2 font-black border transition ${isDarkMode ? 'border-white/10 bg-white/5 text-white hover:bg-white/10' : 'border-amber-200 bg-white/80 text-gray-900 hover:bg-amber-50'}`}
+                                >
+                                    اكتشف المميزات <ArrowLeft size={18} />
+                                </a>
+                            </div>
+                        </div>
+
+                        <div className="relative min-h-[340px] md:min-h-[460px] lg:min-h-[520px] rounded-[1.75rem] md:rounded-[2.25rem] overflow-hidden border border-white/10 bg-black/[0.94]">
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_15%,rgba(245,158,11,0.26),transparent_30%),radial-gradient(circle_at_78%_22%,rgba(59,130,246,0.20),transparent_34%)]" />
+                            <div className="absolute inset-x-0 top-0 z-20 h-11 flex items-center justify-between px-4 border-b border-white/10 bg-black/35 backdrop-blur-md" dir="ltr">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-3 w-3 rounded-full bg-red-400" />
+                                    <span className="h-3 w-3 rounded-full bg-amber-400" />
+                                    <span className="h-3 w-3 rounded-full bg-emerald-400" />
+                                </div>
+                                <span className="text-[11px] font-black text-white/55">Interactive 3D Preview</span>
+                            </div>
+                            <div className="absolute inset-0 pt-10">
+                                <div className="flex h-full w-full items-center justify-center">
+                                    <div className="relative h-52 w-52 rounded-[2rem] border border-amber-300/30 bg-amber-400/10 shadow-[0_0_90px_rgba(245,158,11,0.25)]">
+                                        <div className="absolute -right-8 top-10 h-24 w-32 rotate-12 rounded-2xl border border-white/15 bg-white/10" />
+                                        <div className="absolute -left-8 bottom-10 h-24 w-32 -rotate-12 rounded-2xl border border-white/15 bg-white/10" />
+                                        <div className="absolute inset-8 rounded-3xl bg-gradient-to-br from-amber-300/30 to-blue-400/20" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            </section>
+
             {/* --- FEATURES GRID (Bento Style) --- */}
             <section id="features" className="py-16 md:py-24 bg-stone-50 dark:bg-black/20 content-auto">
                 <div className="max-w-7xl mx-auto px-4 md:px-6">
                     <div className="text-center mb-12 md:mb-16">
-                        <h2 className="text-2xl md:text-5xl font-black mb-3 md:mb-4 text-gray-900 dark:text-white">كل ما تحتاجه في مكان واحد</h2>
-                        <p className="text-gray-500 dark:text-gray-400 text-base md:text-lg">استغني عن تشتت التطبيقات المتعددة.</p>
+                        <h2 className="text-2xl md:text-5xl font-black mb-3 md:mb-4 text-gray-900 dark:text-white">منصة واحدة بدل رحلة مشتتة</h2>
+                        <p className="text-gray-500 dark:text-gray-400 text-base md:text-lg">بدل ما تتنقل بين تطبيق للحفظ، وآخر للمحادثة، وثالث للمراجعة، خلي كل خطوة في مكان واحد.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -505,35 +914,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                     </motion.div>
                     <h2 className="text-4xl md:text-6xl font-black text-gray-900 dark:text-white mb-6 tracking-tight">واجهة عصرية <span className="text-amber-500">لتجربة تعليمية</span> فريدة</h2>
                     <p className="text-gray-500 dark:text-gray-400 max-w-3xl mx-auto text-lg md:text-xl font-medium">
-                        صممنا "اتعلم بالعربي" لتكون الأجمل والأسهل استخداماً، حيث تجتمع البساطة مع القوة لتستمتع بكل لحظة في رحلة تعلمك.
+                        صممنا "KeyLang" لتكون الأجمل والأسهل استخداماً، حيث تجتمع البساطة مع القوة لتستمتع بكل لحظة في رحلة تعلمك.
                     </p>
                 </div>
 
-                <div className="relative flex overflow-hidden py-10 pause-on-hover" dir="ltr">
+                <div className="relative flex overflow-hidden py-10 md:py-12 pause-on-hover" dir="ltr">
                     <div
-                        className="flex gap-8 md:gap-12 w-fit animate-marquee"
+                        className="flex gap-5 sm:gap-7 md:gap-10 w-fit animate-marquee"
                     >
-                        {/* DOUBLE DUPLICATION: Optimized for performance while maintaining infinite loop */}
-                        {[1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6].map((id, index) => (
+                        {[...showcaseSlides, ...showcaseSlides].map((slide, index) => (
                             <motion.div
-                                key={`${id}-${index}`}
+                                key={`${slide.src}-${index}`}
                                 whileHover={{
                                     scale: 1.05,
-                                    y: -15,
+                                    y: -12,
                                     transition: { duration: 0.3 }
                                 }}
-                                className="relative flex-shrink-0 w-[80vw] md:w-[600px] aspect-[16/10] rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 group bg-gray-100 dark:bg-gray-800 transform-gpu"
+                                className="relative flex-shrink-0 w-[86vw] sm:w-[560px] lg:w-[680px] aspect-[16/9] rounded-[1.75rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 group bg-gray-100 dark:bg-gray-800 transform-gpu"
                             >
                                 <img
-                                    src={`/ads/ad${id}.jpg`}
-                                    alt={`واجهة تطبيق اتعلم بالعربي Pro - استعراض ميزة رقم ${id}`}
-                                    className="w-full h-full object-cover"
+                                    src={slide.src}
+                                    alt={`${slide.title} داخل منصة KeyLang`}
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                     loading="lazy"
+                                    decoding="async"
+                                    sizes="(min-width: 1024px) 680px, (min-width: 640px) 560px, 86vw"
                                 />
                                 {/* Premium Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-10 text-right">
-                                    <h4 className="text-white text-2xl font-black">Et3alem {id >= 5 ? 'Mobile' : 'Web'}</h4>
-                                    <p className="text-amber-500 font-bold">تجربة تعليمية لا تنتهي</p>
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6 md:p-10 text-right">
+                                    <h4 className="text-white text-xl md:text-2xl font-black">{slide.title}</h4>
+                                    <p className="text-amber-300 font-bold text-sm md:text-base">{slide.label}</p>
                                 </div>
                             </motion.div>
                         ))}
@@ -597,7 +1007,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                         >
                             المقارنة العادلة
                         </motion.span>
-                        <h2 className="text-3xl md:text-6xl font-black text-gray-900 dark:text-white mb-6">ما الفرق في <span className="text-amber-500">اتعلم بالعربي Pro؟</span></h2>
+                        <h2 className="text-3xl md:text-6xl font-black text-gray-900 dark:text-white mb-6">ما الفرق في <span className="text-amber-500">KeyLang Pro؟</span></h2>
                         <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto text-lg">
                             نحن لا نقدم مجرد دروس، نحن نبني لك مسارات عصبية متكاملة لحفظ اللغة.
                         </p>
@@ -616,11 +1026,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                             </h3>
                             <ul className="space-y-6">
                                 {[
-                                    "حفظ قوائم كلمات صماء لا تنتهي.",
-                                    "النسيان السريع بعد مرور 48 ساعة فقط.",
-                                    "غياب السياق القصصي الممتع.",
-                                    "لا توجد متابعة لمستوى تقدمك الحقيقي.",
-                                    "اعتماد كلي على المجهود العضلي للذاكرة."
+                                    "تطبيق يحفظ كلمات فقط بدون مسار واضح.",
+                                    "محادثة منفصلة لا تعرف الكلمات التي تراجعها.",
+                                    "مراجعة عشوائية لا تراعي موعد النسيان.",
+                                    "محتوى جاهز لا يسمح لك ببناء كروتك الخاصة.",
+                                    "تجربة غير مهيأة كفاية للمتعلم العربي."
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-start gap-3 text-gray-500 dark:text-gray-400">
                                         <X size={20} className="mt-1 flex-shrink-0 text-red-500/50" />
@@ -630,7 +1040,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                             </ul>
                         </motion.div>
 
-                        {/* اتعلم بالعربي Pro — طريقة التعلم */}
+                        {/* KeyLang Pro — طريقة التعلم */}
                         <motion.div
                             initial={{ opacity: 0, x: -50 }}
                             whileInView={{ opacity: 1, x: 0 }}
@@ -639,15 +1049,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                         >
 
                             <h3 className="text-2xl font-bold mb-8 flex items-center gap-3 text-amber-500">
-                                <Plus className="text-amber-500" /> نظام اتعلم بالعربي Pro
+                                <Plus className="text-amber-500" /> نظام KeyLang Pro
                             </h3>
                             <ul className="space-y-6 relative z-10">
                                 {[
-                                    "حرية إنشاء مجلداتك وكروتك الخاصة باللغة التي تهمك فعلاً.",
-                                    "تشغيل الذكاء الاصطناعي لتوليد أمثلة وتصحيح العبارات.",
-                                    "نظام SRS يضمن عرض الكروت في التوقيت الذي يمنع النسيان.",
-                                    "استخدام القصص التفاعلية لسماع النطق وربط الكروت بالسياق.",
-                                    "تطبيق غير مقيد بمنهج إجباري بل يتشكل حسب احتياجاتك."
+                                    "مسار منظم للإنجليزية والألمانية مع مستويات واضحة من A1 إلى C1.",
+                                    "كروت ومجلدات خاصة بك بجانب محتوى جاهز من لوحة التحكم.",
+                                    "نظام SRS يحدد موعد مراجعة كل كارت حسب أدائك الحقيقي.",
+                                    "معلم ذكاء اصطناعي للتصحيح، الأمثلة، الشرح، والمحادثة.",
+                                    "قصص وجمل ونطق صوتي تربط الكلمات بسياق مفهوم بدل الحفظ الجاف."
                                 ].map((item, i) => (
                                     <li key={i} className="flex items-start gap-3 text-gray-700 dark:text-gray-200">
                                         <CheckCircle size={22} className="mt-1 flex-shrink-0 text-amber-500" />
@@ -661,8 +1071,119 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                 </div>
             </section>
 
+            {/* --- VIDEO SHOWCASE SECTION --- */}
+            <section id="pricing" className="py-20 md:py-28 bg-white dark:bg-[#0f172a] relative overflow-hidden content-auto">
+                <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute -top-32 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-amber-400/20 blur-3xl" />
+                    <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-orange-500/10 blur-3xl" />
+                    <div className="absolute top-1/3 left-0 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+                </div>
+                <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+                    <div className="text-center mb-10 md:mb-14">
+                        <motion.span
+                            initial={{ opacity: 0, y: 12 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm font-black text-amber-600 dark:text-amber-300 mb-5"
+                        >
+                            <PlayCircle size={18} />
+                            من داخل التجربة
+                        </motion.span>
+                        <h2 className="text-3xl md:text-6xl font-black text-gray-900 dark:text-white mb-5">
+                            شاهد <span className="text-amber-500">KeyLang</span> وهي تعمل
+                        </h2>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto text-lg md:text-xl leading-8">
+                            لقطات قصيرة تعرض شكل المنصة الحقيقي وطريقة التفاعل مع تجربة التعلم.
+                        </p>
+                    </div>
+
+                    <div className="relative max-w-5xl mx-auto">
+                        <div className="absolute -inset-4 md:-inset-8 bg-gradient-to-r from-amber-500/25 via-orange-500/10 to-sky-500/20 blur-3xl rounded-[3rem]" />
+                        <div className="relative overflow-hidden rounded-[2rem] md:rounded-[3rem] bg-slate-950 border border-amber-500/20 shadow-[0_35px_100px_-45px_rgba(245,158,11,0.75)]">
+                            <div className="relative aspect-video min-h-[220px] sm:min-h-[320px] md:min-h-[460px]">
+                                {reduceMotion ? (
+                                    <img
+                                        src={showcaseSlides[0].src}
+                                        alt=""
+                                        className="absolute inset-0 h-full w-full object-cover"
+                                        loading="lazy"
+                                        decoding="async"
+                                    />
+                                ) : (
+                                    <AnimatePresence mode="wait">
+                                        <motion.video
+                                            key={activeLandingVideo.src}
+                                            initial={{ opacity: 0, scale: 1.03 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.98 }}
+                                            transition={{ duration: 0.45, ease: "easeOut" }}
+                                            className="absolute inset-0 h-full w-full object-cover"
+                                            autoPlay
+                                            muted
+                                            loop
+                                            playsInline
+                                            preload="metadata"
+                                            controls={false}
+                                            onContextMenu={(event) => event.preventDefault()}
+                                        >
+                                            <source src={activeLandingVideo.src} type="video/mp4" />
+                                        </motion.video>
+                                    </AnimatePresence>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+                                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7 md:p-9">
+                                    <div className="max-w-xl text-right">
+                                        <p className="text-amber-300 text-sm md:text-base font-black mb-2">
+                                            {activeLandingVideo.label}
+                                        </p>
+                                        <h3 className="text-white text-2xl md:text-4xl font-black leading-tight">
+                                            {activeLandingVideo.title}
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-7 flex items-center justify-center gap-3 md:gap-5">
+                            <button
+                                type="button"
+                                onClick={goToPreviousLandingVideo}
+                                aria-label="الفيديو السابق"
+                                className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-950 shadow-xl shadow-amber-500/10 flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                            >
+                                <ChevronRight size={24} />
+                            </button>
+
+                            <div className="flex items-center gap-2 rounded-full bg-gray-100 dark:bg-white/10 border border-gray-200 dark:border-white/10 px-4 py-3">
+                                {landingVideoSlides.map((slide, index) => (
+                                    <button
+                                        key={slide.src}
+                                        type="button"
+                                        onClick={() => setActiveLandingVideoIndex(index)}
+                                        aria-label={`اعرض الفيديو ${index + 1}`}
+                                        className={`h-2.5 rounded-full transition-all ${activeLandingVideoIndex === index
+                                            ? 'w-10 bg-amber-500'
+                                            : 'w-2.5 bg-gray-400/60 dark:bg-white/35 hover:bg-amber-400'
+                                            }`}
+                                    />
+                                ))}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={goToNextLandingVideo}
+                                aria-label="الفيديو التالي"
+                                className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-amber-500 text-black shadow-xl shadow-amber-500/25 flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                            >
+                                <ChevronRight size={24} className="rotate-180" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* --- PRICING SECTION --- */}
-            <section id="pricing" className="py-20 md:py-32 bg-white dark:bg-[#0f172a] relative overflow-hidden content-auto">
+            <section id="pricing-legacy" className="hidden">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
                     <div className="text-center mb-16 md:mb-24">
                         <h2 className="text-3xl md:text-6xl font-black text-gray-900 dark:text-white mb-6">استثمر في <span className="text-amber-500">مستقبلك اللغوي</span></h2>
@@ -745,6 +1266,98 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                 </div>
             </section>
 
+            {/* --- TESTIMONIALS SECTION --- */}
+            <section id="testimonials" className="py-20 md:py-32 bg-stone-50 dark:bg-black/30 relative overflow-hidden content-auto">
+                <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(135deg,rgba(245,158,11,0.10),transparent_34%,rgba(14,165,233,0.08)_66%,transparent)]" />
+                <div className="max-w-7xl mx-auto px-4 md:px-6 relative z-10">
+                    <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.4fr] gap-10 lg:gap-14 items-start">
+                        <motion.div
+                            initial={{ opacity: 0, y: 24 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, margin: "-80px" }}
+                            transition={{ duration: 0.55 }}
+                            className="lg:sticky lg:top-28"
+                        >
+                            <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm font-black text-amber-600 dark:text-amber-300 mb-5">
+                                <Quote size={17} />
+                                آراء العملاء
+                            </span>
+                            <h2 className="text-3xl md:text-6xl font-black text-gray-900 dark:text-white leading-tight mb-5">
+                                عملاء بدأوا يتعلمون <span className="text-amber-500">بشكل أوضح وأكثر التزامًا</span>
+                            </h2>
+                            <p className="text-gray-600 dark:text-gray-300 text-lg md:text-xl leading-9 mb-8">
+                                تجارب متنوعة لطلاب وموظفين ومدرسين استخدموا KeyLang لبناء عادة تعلم منظمة بدل الحفظ العشوائي والتشتت.
+                            </p>
+
+                            <div className="grid grid-cols-3 gap-3 md:gap-4">
+                                {[
+                                    { value: '4.9/5', label: 'تقييم التجربة' },
+                                    { value: '6', label: 'تجارب متنوعة' },
+                                    { value: '20د', label: 'متوسط مذاكرة' },
+                                ].map((stat, index) => (
+                                    <motion.div
+                                        key={stat.label}
+                                        initial={{ opacity: 0, y: 18 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: true }}
+                                        transition={{ delay: index * 0.08 }}
+                                        className="rounded-2xl border border-stone-200/80 dark:border-white/10 bg-white/85 dark:bg-white/[0.06] px-3 py-4 text-center shadow-sm"
+                                    >
+                                        <div className="text-xl md:text-2xl font-black text-gray-900 dark:text-white">{stat.value}</div>
+                                        <div className="mt-1 text-[11px] md:text-xs font-bold text-gray-500 dark:text-gray-400">{stat.label}</div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </motion.div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                            {customerTestimonials.map((item, index) => (
+                                <motion.article
+                                    key={`${item.name}-${item.city}`}
+                                    initial={{ opacity: 0, y: 30, scale: 0.98 }}
+                                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                                    viewport={{ once: true, margin: "-60px" }}
+                                    transition={{ duration: 0.5, delay: index * 0.06 }}
+                                    whileHover={{ y: -6 }}
+                                    className={`relative min-h-[270px] rounded-2xl border border-stone-200/80 dark:border-white/10 bg-white dark:bg-[#111827] p-5 md:p-6 shadow-[0_18px_55px_-35px_rgba(15,23,42,0.45)] overflow-hidden ${index % 2 === 1 ? 'md:translate-y-8' : ''}`}
+                                >
+                                    <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-l ${item.accent}`} />
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`h-14 w-14 shrink-0 rounded-2xl bg-gradient-to-br ${item.accent} p-[2px] shadow-lg`}>
+                                                <div className="h-full w-full rounded-2xl bg-white/90 dark:bg-slate-950 flex items-center justify-center text-sm font-black text-gray-900 dark:text-white">
+                                                    {item.initials}
+                                                </div>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="font-black text-gray-900 dark:text-white text-lg truncate">{item.name}</h3>
+                                                <p className="text-sm font-bold text-gray-500 dark:text-gray-400">{item.role} - {item.city}</p>
+                                            </div>
+                                        </div>
+                                        <Quote size={28} className="text-amber-500/30 shrink-0" />
+                                    </div>
+
+                                    <div className="flex items-center gap-1 mt-5 text-amber-500">
+                                        {[0, 1, 2, 3, 4].map((star) => (
+                                            <Star key={star} size={17} fill="currentColor" />
+                                        ))}
+                                    </div>
+
+                                    <p className="mt-4 text-gray-700 dark:text-gray-200 leading-8 font-medium">
+                                        “{item.text}”
+                                    </p>
+
+                                    <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-stone-100 dark:bg-white/[0.08] border border-stone-200/70 dark:border-white/10 px-3 py-2 text-xs md:text-sm font-black text-gray-700 dark:text-gray-200">
+                                        <CheckCircle size={15} className="text-emerald-500" />
+                                        {item.result}
+                                    </div>
+                                </motion.article>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* --- FAQ SECTION --- */}
             <section id="faq" className="py-20 md:py-32 bg-stone-50 dark:bg-black/10 content-auto">
                 <div className="max-w-4xl mx-auto px-4 md:px-6">
@@ -755,10 +1368,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
 
                     <div className="space-y-4">
                         {[
-                            { q: "هل التطبيق يحتوي على محتوى جاهز أم أستطيع إضافة كروتي الخاصة؟", a: "الأمران معاً! منصة اتعلم بالعربي توفر مجلدات وقصص من النظام (System Folders)، وفي الوقت ذاته تمنحك الحرية المطلقة لإنشاء مجلداتك وكروتك الخاصة وإدخال الكلمات والمصطلحات التي تهمك شخصياً في مجال عملك أو دراستك." },
-                            { q: "كيف يساعدني الذكاء الاصطناعي داخل الموقع؟", a: "ستندهش! كل حساب مزود بقسم الذكاء الاصطناعي حيث يمكنه تصحيح الجرامر (Rules)، توليد 3 أمثلة حية لأي كلمة تسأله عنها، أو حتى الدردشة معك وكأنه متحدث أصلي لتكسر حاجز الخوف من التحدث." },
-                            { q: "هل يتوفر النطق الصوتي للكلمات؟", a: "بالتأكيد. جميع أقسام الموقع تدعم النطق الفوري عالي الدقة (TTS). سواء في القصص، كروتك الخاصة، أو الكروت الجاهزة. لن تحفظ الكلمة فقط بل ستحفظ طريقة نطقها الصحيحة." },
-                            { q: "ما هو نظام التكرار المتباعد وكيف يضمن عدم نسيان الكلمات؟", a: "نحن نستخدم خوارزمية ذكية لمراقبة تقييمك للأجوبة في كل مرة تراجع فيها الكروت. إذا كان الكارت سهلاً سيتأخر في الظهور والعكس صحيح. هذه التقنية أثبتت علمياً قدرتها على نقل الكلمات للذاكرة طويلة المدى وضمان عدم نسيانها." }
+                            { q: "هل KeyLang مناسب للإنجليزي والألماني فقط؟", a: "نعم. التجربة الحالية مركزة على الإنجليزية والألمانية حتى يكون المحتوى، الكروت، القصص، والنطق أوضح وأعمق بدل دعم لغات كثيرة بشكل سطحي." },
+                            { q: "ما الفرق بين KeyLang والطريقة التقليدية في تعلم اللغة؟", a: "KeyLang لا يكتفي بقائمة كلمات أو محادثة منفصلة. أنت تتعلم في مسار، تحفظ الكلمات داخل كروت، تراجعها بنظام SRS، تسمعها في قصص، ثم تستخدم الذكاء الاصطناعي للتصحيح والشرح والمحادثة." },
+                            { q: "هل أقدر أضيف كروتي الخاصة بجانب المحتوى الجاهز؟", a: "نعم. المنصة توفر محتوى جاهز من النظام، وفي نفس الوقت تمنحك حرية إنشاء مجلداتك وبطاقاتك الخاصة بالكلمات والمصطلحات التي تهمك في عملك أو دراستك." },
+                            { q: "كيف يساعدني الذكاء الاصطناعي داخل الموقع؟", a: "يساعدك في تصحيح الجمل، شرح القواعد بالعربي، توليد أمثلة مفهومة، ودخول محادثات تدريبية تناسب مستواك حتى تتدرب على الاستخدام الحقيقي للغة." }
                         ].map((item, i) => (
                             <FAQItem key={i} question={item.q} answer={item.a} />
                         ))}
@@ -774,7 +1387,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
 
                 <div className="max-w-4xl mx-auto px-4 md:px-6 relative z-10 text-center text-white">
                     <h2 className="text-3xl md:text-6xl font-black mb-4 md:mb-6">ابدأ رحلتك التعليمية اليوم</h2>
-                    <p className="text-base md:text-xl text-white/80 mb-8 md:mb-10 max-w-2xl mx-auto">انضم إلى أكثر من 50,000 متعلم وابدأ في إتقان لغة جديدة بطريقة ذكية وممتعة.</p>
+                    <p className="text-base md:text-xl text-white/80 mb-8 md:mb-10 max-w-2xl mx-auto">ابدأ بخطة واضحة للإنجليزي أو الألماني: تعلم، احفظ، راجع، وتحدث مع معلم AI يفهم هدفك ومستواك.</p>
                     <button onClick={onLoginClick} className="btn-primary mx-auto text-lg md:text-xl flex items-center justify-center gap-3">
                         إنشاء حساب مجاني <ChevronRight size={20} className="rtl:rotate-180 md:w-6 md:h-6" />
                     </button>
@@ -804,7 +1417,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                     </div>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-3xl font-black tracking-tight text-white leading-none">اتعلم بالعربي Pro</span>
+                                    <span className="text-3xl font-black tracking-tight text-white leading-none">KeyLang Pro</span>
                                     <span className="text-sm text-amber-500/80 font-bold tracking-[0.2em] mt-2 uppercase">Linguistics Lab</span>
                                 </div>
                             </motion.div>
@@ -842,8 +1455,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                 {[
                                     { id: "features", label: "المميزات" },
                                     { id: "method", label: "طريقة التعلم" },
-                                    { id: "pricing", label: "الأسعار" },
-                                    { id: "testimonials", label: "آراء الطلاب" },
+                                    { id: "pricing", label: "الفيديوهات" },
+                                    { id: "testimonials", label: "آراء العملاء" },
                                     { id: "faq", label: "الأسئلة الشائعة" }
                                 ].map((link) => (
                                     <li key={link.id}>
@@ -872,7 +1485,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500 font-bold mb-1 uppercase tracking-wider">بريدنا الإلكتروني</p>
-                                        <p className="text-gray-200 font-medium">support@et3alem-bel-araby.com</p>
+                                        <p className="text-gray-200 font-medium">support@keylang.com</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-4 group">
@@ -890,7 +1503,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
 
                     {/* Bottom Attribution */}
                     <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-right">
-                        <p className="text-gray-500 text-sm">© 2026 اتعلم بالعربي Pro. جميع الحقوق محفوظة.</p>
+                        <p className="text-gray-500 text-sm">© 2026 KeyLang Pro. جميع الحقوق محفوظة.</p>
                         <div className="flex items-center gap-4 text-xs font-bold text-gray-500">
                             <a href="#!" onClick={handleDummyClick} className="hover:text-amber-500 transition">سياسة الخصوصية</a>
                             <span className="hidden md:block w-1 h-1 bg-gray-700 rounded-full"></span>
@@ -903,13 +1516,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, isDarkMo
             {/* --- PROMO PRESENTATION --- */}
             <AnimatePresence>
                 {isVideoOpen && (
-                    <PromoPresentation
-                        onClose={() => setIsVideoOpen(false)}
-                        onSignUp={() => { setIsVideoOpen(false); onLoginClick(); }}
-                    />
+                    <React.Suspense fallback={null}>
+                        <PromoPresentation
+                            onClose={() => setIsVideoOpen(false)}
+                            onSignUp={() => { setIsVideoOpen(false); onLoginClick(); }}
+                        />
+                    </React.Suspense>
                 )}
             </AnimatePresence>
         </div>
+        </MotionConfig>
     );
 };
 
@@ -948,20 +1564,3 @@ const FAQItem: React.FC<{ question: string; answer: string }> = ({ question, ans
         </div>
     );
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

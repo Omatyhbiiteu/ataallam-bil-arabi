@@ -39,6 +39,13 @@ class ContentFolder extends Model
         return $this->hasMany(ContentCard::class, 'folder_id');
     }
 
+    protected function setKeysForSaveQuery($query)
+    {
+        return $query
+            ->where('id', $this->getOriginal('id', $this->getAttribute('id')))
+            ->where('lang', $this->getOriginal('lang', $this->getAttribute('lang')));
+    }
+
     protected static function booted(): void
     {
         static::creating(function (ContentFolder $m) {

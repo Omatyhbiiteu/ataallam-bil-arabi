@@ -22,8 +22,12 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src }) => 
 
     const handleTimeUpdate = () => {
         if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
-            setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+            const dur = audioRef.current.duration;
+            const cur = audioRef.current.currentTime;
+            setCurrentTime(cur);
+            if (dur && !isNaN(dur)) {
+                setProgress((cur / dur) * 100);
+            }
         }
     };
 
@@ -34,15 +38,17 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src }) => 
     };
 
     const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newTime = (parseFloat(e.target.value) / 100) * duration;
-        if (audioRef.current) {
+        const value = parseFloat(e.target.value);
+        if (audioRef.current && duration) {
+            const newTime = (value / 100) * duration;
             audioRef.current.currentTime = newTime;
-            setProgress(parseFloat(e.target.value));
+            setProgress(value);
+            setCurrentTime(newTime);
         }
     };
 
     const formatTime = (time: number) => {
-        if (isNaN(time)) return "00:00";
+        if (!time || isNaN(time)) return '00:00';
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
@@ -53,24 +59,67 @@ export const CustomAudioPlayer: React.FC<CustomAudioPlayerProps> = ({ src }) => 
             <audio
                 ref={audioRef}
                 src={src}
+                preload="metadata"
+                controlsList="nodownload noplaybackrate"
+                onContextMenu={(e) => e.preventDefault()}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
                 onEnded={() => setIsPlaying(false)}
             />
-            <button onClick={togglePlay} className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center hover:scale-105 transition shadow-lg shadow-primary/30 flex-shrink-0">
+
+            {/* زر التشغيل */}
+            <button
+                onClick={togglePlay}
+                className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center hover:scale-105 transition shadow-lg shadow-primary/30 flex-shrink-0"
+            >
                 {isPlaying ? <PauseCircle size={24} /> : <PlayCircle size={24} />}
             </button>
+
+            {/* شريط التقدم والوقت */}
             <div className="flex-1 flex flex-col justify-center">
-                <div className="flex justify-between text-xs font-bold text-gray-400 mb-1" dir="ltr">
+                <div className="flex justify-between text-xs font-bold text-gray-400 mb-2" dir="ltr">
                     <span>{formatTime(currentTime)}</span>
                     <span>{formatTime(duration)}</span>
                 </div>
-                <div className="relative w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all duration-100" style={{ width: `${progress}%` }}></div>
-                    <input type="range" min="0" max="100" value={progress} onChange={handleSeek} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+
+                {/*
+                  ✅ الإصلاح:
+                  - الـ input[range] مرفوع فوق الـ track في container أعلى (20px)
+                  - overflow-hidden موجود فقط على الـ track الخلفي (pointer-events-none)
+                  - الـ input يغطي كامل المنطقة القابلة للضغط
+                */}
+                <div className="relative w-full" style={{ height: '20px' }}>
+                    {/* Track (الشريط المرئي) */}
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden pointer-events-none">
+                        <div
+                            className="h-full bg-primary rounded-full transition-all duration-100"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                    {/* Input Range - شفاف فوق الشريط بمنطقة ضغط كاملة */}
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={progress}
+                        onChange={handleSeek}
+                        className="absolute inset-0 w-full cursor-pointer"
+                        style={{
+                            opacity: 0,
+                            height: '100%',
+                            margin: 0,
+                            padding: 0,
+                            zIndex: 10,
+                        }}
+                    />
                 </div>
             </div>
-            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300"><Volume2 size={20} /></div>
+
+            {/* أيقونة الصوت */}
+            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300">
+                <Volume2 size={20} />
+            </div>
         </div>
     );
 };

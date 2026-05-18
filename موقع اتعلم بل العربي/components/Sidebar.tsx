@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Layers, Settings, BookOpen, Moon, Sun, X, LogOut, ShieldCheck, Zap, Map, Book, MessageCircle, ChevronDown, Home, Bell, Crown, LayoutGrid, Gift as GiftIcon, Star, Award, Users, HelpCircle, Drama, ChevronLeft, ChevronRight, Sparkles, Globe } from 'lucide-react';
+import { Layers, Settings, BookOpen, Moon, Sun, X, LogOut, ShieldCheck, Zap, Map, Book, MessageCircle, ChevronDown, Home, Bell, Crown, LayoutGrid, Gift as GiftIcon, Star, Award, Users, HelpCircle, Drama, ChevronLeft, ChevronRight, Sparkles, Globe, Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from './Logo';
-import { THEMES_DATA } from './ThemeVisuals';
+import { THEMES_DATA } from './themeData';
 import { AppTheme } from '../types';
 
 // Helper: get initials from name
@@ -94,12 +94,15 @@ const SidebarComponent: React.FC<SidebarProps> = ({
     { id: 'stories', label: t.sidebar.stories, icon: BookOpen },
     { id: 'dictionary', label: t.sidebar.dictionary, icon: Book },
     { id: 'ai_assistant', label: t.sidebar.aiAssistant, icon: MessageCircle },
-    { id: 'sentences', label: 'المواقف الحياتية', icon: Drama },
-    { id: 'community', label: 'المجتمع', icon: Users },
+    { id: 'games', label: t.sidebar.games || 'الألعاب', icon: Gamepad2 },
+    { id: 'sentences', label: t.sidebar.sentences || 'المواقف الحياتية', icon: Drama },
+    { id: 'community', label: t.sidebar.community || 'المجتمع', icon: Users },
   ], [t]);
 
   const positionClass = dir === 'rtl' ? 'right-0' : 'left-0';
   const closedTranslateClass = dir === 'rtl' ? 'translate-x-full' : '-translate-x-full';
+  const menuItemDirectionClass = dir === 'rtl' ? 'flex-row' : 'flex-row-reverse';
+  const menuTextAlignClass = dir === 'rtl' ? 'text-right' : 'text-left';
 
   const isHoliday = !!THEMES_DATA[selectedTheme]?.greeting;
 
@@ -108,42 +111,49 @@ const SidebarComponent: React.FC<SidebarProps> = ({
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          className="fixed inset-0 bg-black/50 z-40 xl:hidden backdrop-blur-sm"
           onClick={onClose}
         />
       )}
 
       <aside className={`
-        fixed top-0 bottom-0 h-screen w-72 bg-white dark:bg-dark-card z-50 flex flex-col transition-transform duration-300 ease-in-out 
-        border-l border-r border-stone-200 dark:border-gray-800 shadow-2xl md:shadow-warm-lg dark:shadow-none
+        fixed top-0 bottom-0 h-screen w-72 xl:w-80 bg-white dark:bg-dark-card z-50 flex flex-col transition-transform duration-300 ease-in-out
+        border-l border-r border-stone-200 dark:border-gray-800 shadow-2xl xl:shadow-warm-lg dark:shadow-none
         ${positionClass}
         ${isOpen ? 'translate-x-0' : closedTranslateClass} 
-        md:translate-x-0
+        xl:translate-x-0
       `}>
-        <div className="px-6 py-6 md:p-8 flex items-center justify-between border-b border-stone-100 dark:border-gray-800 transition-colors duration-300">
+        {/* ── Sidebar Header — logo + bell ── */}
+        <div className="px-5 py-5 flex items-center justify-between gap-4 border-b border-stone-100 dark:border-gray-800 transition-colors duration-300 bg-gradient-to-l from-stone-50/60 to-transparent dark:from-gray-900/40 dark:to-transparent">
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
-            className="group cursor-pointer min-w-0"
+            transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+            className="group cursor-pointer flex-1 min-w-0 overflow-hidden"
             onClick={() => { setActiveTab('home'); onClose(); }}
           >
-            <Logo variant="bilingual" size="md" className="!justify-end" />
+            <Logo variant="bilingual" size="sm" className="!justify-start" />
           </motion.div>
 
-          {/* New Notification Bell in Header */}
-          <div className="flex items-center gap-2">
+          {/* Bell + Close */}
+          <div className="flex items-center gap-1.5 xl:gap-2 shrink-0">
             <button
               onClick={onToggleNotifications}
-              className="relative p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-all group"
-              title="الإشعارات"
+              className="relative p-2 xl:p-2.5 rounded-xl xl:rounded-2xl hover:bg-red-50 dark:hover:bg-white/5 text-gray-400 hover:text-red-500 transition-all duration-200 group border border-transparent hover:border-red-100 dark:hover:border-red-900/30"
+              title={t.sidebar.notificationsTitle || t.settings?.notifications || 'Notifications'}
             >
-              <Bell size={22} className="group-hover:rotate-12 transition-transform" />
+              <Bell className="w-5 h-5 xl:w-[22px] xl:h-[22px] group-hover:rotate-12 transition-transform duration-300" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 border-2 border-white dark:border-dark-card rounded-full animate-pulse"></span>
+                <span className="absolute top-1.5 right-1.5 xl:top-2 xl:right-2 w-2 h-2 xl:w-2.5 xl:h-2.5 bg-red-500 border-2 border-white dark:border-dark-card rounded-full animate-pulse"></span>
               )}
             </button>
 
-            <button onClick={onClose} className="md:hidden p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 shrink-0"><X size={24} /></button>
+            <button
+              onClick={onClose}
+              className="xl:hidden p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-400 shrink-0 border border-transparent hover:border-stone-200 dark:hover:border-gray-600 transition-all duration-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -264,9 +274,9 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                 key={item.id}
                 onClick={() => { setActiveTab(item.id); onClose(); }}
                 style={activeStyle}
-                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group relative overflow-hidden border ${isActive
-                  ? 'font-bold border-transparent'  // Active State logic handled by inline style
-                  : `border-transparent text-gray-600 dark:text-gray-400 hover:bg-stone-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white ${sentencesNeedsPro ? 'opacity-95' : ''}` // Inactive State
+                className={`w-full flex ${menuItemDirectionClass} items-center gap-3 xl:gap-4 px-4 py-3 xl:px-5 xl:py-3.5 rounded-xl xl:rounded-2xl transition-all duration-300 group relative overflow-hidden border ${isActive
+                  ? 'font-bold border-transparent'
+                  : `border-transparent text-gray-600 dark:text-gray-400 hover:bg-stone-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white ${sentencesNeedsPro ? 'opacity-95' : ''}`
                   }`}
               >
                 {isActive && (
@@ -276,9 +286,9 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                   />
                 )}
 
-                <Icon size={24} className={isActive ? 'animate-pulse drop-shadow-md' : 'group-hover:scale-110 transition-transform'} />
+                <Icon className={`w-5 h-5 xl:w-6 xl:h-6 ${isActive ? 'animate-pulse drop-shadow-md' : 'group-hover:scale-110 transition-transform'}`} />
 
-                <span className="flex-1 text-right text-lg tracking-wide">{item.label}</span>
+                <span className={`flex-1 ${menuTextAlignClass} text-base xl:text-lg tracking-wide`}>{item.label}</span>
 
                 {sentencesNeedsPro && (
                   <span className="shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded-lg border border-amber-200/80 dark:border-amber-600/40">
@@ -301,11 +311,11 @@ const SidebarComponent: React.FC<SidebarProps> = ({
               <div className="flex items-center gap-2 mb-3">
                 <Globe size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
                 <span className="text-xs font-black text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                  لغة التعلم
+                  {t.sidebar.learningLanguage || 'لغة التعلم'}
                 </span>
               </div>
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-                التبديل يحدّث المنهج والقصص والبطاقات وتقدمك في مسار التعلم لكل لغة على حدة.
+                {t.sidebar.learningLanguageHint || 'التبديل يحدّث المنهج والقصص والبطاقات وتقدمك في مسار التعلم لكل لغة على حدة.'}
               </p>
               <div className="flex gap-2">
                 <button
@@ -339,11 +349,11 @@ const SidebarComponent: React.FC<SidebarProps> = ({
           {/* Dropdown Toggle Button */}
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-gray-700 border border-stone-200 dark:border-gray-700 transition-all duration-300 shadow-sm group hover:shadow-md active:scale-[0.98]"
+            className="w-full flex items-center justify-between px-4 py-3 xl:px-5 xl:py-3.5 rounded-xl xl:rounded-2xl text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-gray-700 border border-stone-200 dark:border-gray-700 transition-all duration-300 shadow-sm group hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex items-center gap-3">
-              <LayoutGrid size={22} className={`transition-all duration-500 ${isSettingsOpen ? 'text-amber-500 rotate-[45deg]' : 'group-hover:rotate-[90deg] group-hover:scale-110 text-gray-500 dark:text-gray-400'}`} />
-              <span className={`font-bold text-base transition-colors duration-300 ${isSettingsOpen ? 'text-amber-600 dark:text-amber-400' : ''}`}>خيارات إضافية</span>
+              <LayoutGrid className={`w-5 h-5 xl:w-[22px] xl:h-[22px] transition-all duration-500 ${isSettingsOpen ? 'text-amber-500 rotate-[45deg]' : 'group-hover:rotate-[90deg] group-hover:scale-110 text-gray-500 dark:text-gray-400'}`} />
+              <span className={`font-bold text-sm xl:text-base transition-colors duration-300 ${isSettingsOpen ? 'text-amber-600 dark:text-amber-400' : ''}`}>{t.sidebar.extraOptions || 'خيارات إضافية'}</span>
             </div>
             <ChevronDown
               size={20}
@@ -361,10 +371,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
               {onStartTour && (
                 <button
                   onClick={() => { onStartTour(); setIsSettingsOpen(false); onClose(); }}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-purple-700 dark:text-purple-400 bg-purple-100/50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all border border-purple-200 dark:border-purple-900 group transform hover:translate-x-1 rtl:hover:-translate-x-1"
+                  className="w-full flex items-center gap-3 xl:gap-4 px-4 py-3 xl:px-5 xl:py-3.5 rounded-xl xl:rounded-2xl text-purple-700 dark:text-purple-400 bg-purple-100/50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all border border-purple-200 dark:border-purple-900 group transform hover:translate-x-1 rtl:hover:-translate-x-1"
                 >
-                  <HelpCircle size={22} className="group-hover:scale-110 transition-transform" />
-                  <span className="font-bold text-base">بدء الجولة التعريفية</span>
+                  <HelpCircle className="w-5 h-5 xl:w-[22px] xl:h-[22px] group-hover:scale-110 transition-transform" />
+                  <span className="font-bold text-sm xl:text-base">{t.sidebar.startTour || 'بدء الجولة التعريفية'}</span>
                 </button>
               )}
 
@@ -373,10 +383,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
               {/* Settings */}
               <button
                 onClick={() => { setActiveTab('settings'); setIsSettingsOpen(false); onClose(); }}
-                className="w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-gray-700 border border-stone-200 dark:border-gray-700 transition-all shadow-sm group transform hover:translate-x-1 rtl:hover:-translate-x-1"
+                className="w-full flex items-center gap-3 xl:gap-4 px-4 py-3 xl:px-5 xl:py-3.5 rounded-xl xl:rounded-2xl text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-gray-700 border border-stone-200 dark:border-gray-700 transition-all shadow-sm group transform hover:translate-x-1 rtl:hover:-translate-x-1"
               >
-                <Settings size={22} className="group-hover:rotate-90 transition-transform duration-300" />
-                <span className="font-bold text-base">{t.sidebar.settings}</span>
+                <Settings className="w-5 h-5 xl:w-[22px] xl:h-[22px] group-hover:rotate-90 transition-transform duration-300" />
+                <span className="font-bold text-sm xl:text-base">{t.sidebar.settings}</span>
               </button>
 
               {/* Theme Toggle */}
@@ -388,10 +398,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="font-bold text-sm text-gray-800 dark:text-gray-200">
-                      {isDarkMode ? 'الوضع الليلي' : 'الوضع النهاري'}
+                      {isDarkMode ? t.sidebar.darkMode : t.sidebar.lightMode}
                     </span>
                     <span className="text-[10px] font-bold text-gray-400">
-                      {isDarkMode ? 'مفعّل' : 'غير مفعّل'}
+                      {isDarkMode ? (t.sidebar.enabled || 'مفعّل') : (t.sidebar.disabled || 'غير مفعّل')}
                     </span>
                   </div>
                 </div>
@@ -429,7 +439,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                   className="w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/30 border border-transparent hover:border-red-200 transition-all group transform hover:translate-x-1 rtl:hover:-translate-x-1"
                 >
                   <LogOut size={22} className="group-hover:-translate-x-1 rtl:group-hover:translate-x-1 transition-transform" />
-                  <span className="font-bold text-base">تسجيل الخروج</span>
+                  <span className="font-bold text-base">{t.sidebar.logout || 'تسجيل الخروج'}</span>
                 </button>
               )}
             </div>
@@ -514,16 +524,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                   <span className="text-xs font-black text-gray-500 dark:text-gray-400 tracking-widest uppercase">{userName}</span>
                 </div>
                 <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-3">
-                  {selectedTheme === 'ramadan' ? 'تقبل الله منا ومنكم 🌙' :
-                    selectedTheme === 'eid_fitr' ? 'عيد سعيد! 🎉' :
-                      selectedTheme === 'eid_adha' ? 'أضحى مبارك 🐑' :
-                        selectedTheme === 'victory_october' ? 'عاشت مصر حرة 🇪🇬' :
-                          'تسجيل الخروج؟'}
+                  {t.sidebar.logoutTitle || 'تسجيل الخروج؟'}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed px-4">
-                  {selectedTheme === 'ramadan' ? 'هل تود تسجيل الخروج الآن؟ نراك بعد الإفطار!' :
-                    selectedTheme === 'eid_fitr' || selectedTheme === 'eid_adha' ? 'نتمنى لك أوقاتاً سعيدة مع العائلة والأصدقاء.' :
-                      'سيتم إنهاء جلستك الحالية. هل أنت متأكد من رغبتك في المغادرة؟'}
+                  {t.sidebar.logoutMessage || 'سيتم إنهاء جلستك الحالية. هل أنت متأكد من رغبتك في المغادرة؟'}
                 </p>
               </div>
 
@@ -533,7 +537,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                   onClick={() => setShowLogoutModal(false)}
                   className="flex-1 px-6 py-4 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all transform hover:scale-[1.02] active:scale-95"
                 >
-                  إلغاء
+                  {t.sidebar.cancel || 'إلغاء'}
                 </button>
                 <button
                   onClick={() => {
@@ -549,7 +553,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                     }`}
                 >
                   <LogOut size={20} />
-                  <span>تأكيد الخروج</span>
+                  <span>{t.sidebar.confirmLogout || 'تأكيد الخروج'}</span>
                 </button>
               </div>
             </div>

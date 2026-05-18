@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
 
 export const Intro = () => {
     const frame = useCurrentFrame();
@@ -36,15 +36,12 @@ export const Intro = () => {
         <AbsoluteFill
             style={{
                 backgroundColor: '#07070d',
-                fontFamily: 'Cairo, system-ui, sans-serif',
+                fontFamily: 'var(--font-arabic), system-ui, sans-serif',
                 color: '#f8fafc',
                 direction: 'rtl',
                 overflow: 'hidden',
             }}
         >
-            {/* Optional narration audio */}
-            <Audio src={staticFile('audio/scene1.mp3')} volume={1} />
-
             {/* ── Grid Texture ── */}
             <div
                 style={{
@@ -126,7 +123,7 @@ export const Intro = () => {
                             display: 'inline-block',
                         }}
                     />
-                    منصة اتعلم بالعربي Pro — الذكاء الاصطناعي في خدمة لغتك
+                    مفتاح اللغة KeyLang — الذكاء الاصطناعي في خدمة لغتك
                 </div>
 
                 {/* Headline */}
@@ -142,7 +139,7 @@ export const Intro = () => {
                         letterSpacing: '-0.01em',
                     }}
                 >
-                    تعلّم أي لغة
+                    تعلّم الإنجليزي والألماني
                     <span
                         style={{
                             display: 'block',

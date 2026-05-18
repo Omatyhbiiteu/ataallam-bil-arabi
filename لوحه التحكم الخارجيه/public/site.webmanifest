@@ -1,0 +1,24 @@
+{
+  "name": "مفتاح اللغة | KeyLang",
+  "short_name": "KeyLang",
+  "description": "لوحة تحكم مفتاح اللغة KeyLang",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffdf7",
+  "theme_color": "#f59e0b",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

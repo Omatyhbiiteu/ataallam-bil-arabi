@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Activity, Brain, Crown, ArrowRight, X, Calendar, MapPin, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Stats, Card, Story, Module, AppTheme, ReviewLog, PromoBanner, InspirationalSlide } from '../types';
-import { THEMES_DATA } from './ThemeVisuals';
+import { THEMES_DATA } from './themeData';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { HomeBanner } from './home/HomeBanner';
 import { StatsGrid } from './home/StatsGrid';
@@ -71,7 +71,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     const [greeting, setGreeting] = useState('');
     const [promoDismissed, setPromoDismissed] = useState(false);
     const trimmedName = userName?.trim();
-    const safeUserName = trimmedName || 'صديقنا';
+    const safeUserName = trimmedName || (t.home?.friendName || 'صديقنا');
     const firstName = trimmedName ? trimmedName.split(/\s+/)[0] : safeUserName;
 
     useEffect(() => {
@@ -96,15 +96,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
         if (!iso) return '';
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) return '';
-        return d.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const locale = t.locale === 'en' ? 'en-US' : (t.locale === 'de' ? 'de-DE' : 'ar-EG');
+        return d.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     };
 
     const planLabel =
         subscriptionPlan === 'enterprise'
-            ? 'باقة أعمال (Enterprise)'
+            ? (t.home?.enterprisePlan || 'باقة أعمال (Enterprise)')
             : subscriptionPlan === 'silver'
-              ? 'باقة سيلفر'
-              : 'باقة البرو';
+              ? (t.home?.silverPlan || 'باقة سيلفر')
+              : (t.home?.proPlan || 'باقة البرو');
 
     const dailyWisdom = t.home?.dailyWisdom || 'حكمة اليوم';
     const motivationalQuotes = t.motivationalQuotes || [
@@ -209,17 +210,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     >
                         <Crown size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
                         <p className="flex-1 text-sm text-emerald-900 dark:text-emerald-100 font-medium leading-snug">
-                            <span className="font-bold">أنت مشترك في {planLabel}.</span>
+                            <span className="font-bold">{t.home?.subscribedTo || 'أنت مشترك في'} {planLabel}.</span>
                             {planSubscribedAt && planExpiresAt ? (
                                 <>
                                     {' '}
-                                    مدة الاشتراك شهر من تفعيل المسؤول: من{' '}
+                                    {t.home?.subscriptionPeriod || 'مدة الاشتراك شهر من تفعيل المسؤول'}: {t.home?.from || 'من'}{' '}
                                     <span className="font-bold tabular-nums">{formatSubDate(planSubscribedAt)}</span>
-                                    {' '}إلى{' '}
+                                    {' '}{t.home?.to || 'إلى'}{' '}
                                     <span className="font-bold tabular-nums">{formatSubDate(planExpiresAt)}</span>.
                                 </>
                             ) : (
-                                <> اشتراكك نشط.</>
+                                <> {t.home?.subscriptionActive || 'اشتراكك نشط.'}</>
                             )}
                         </p>
                     </motion.div>
@@ -235,9 +236,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         >
                             <Crown size={16} className="shrink-0 text-amber-500" />
                             <p className="flex-1 text-sm text-amber-800 dark:text-amber-200 font-medium leading-snug">
-                                فعّل إمكانياتك الكاملة بـ{' '}
-                                <span className="font-bold">{subscriptionPrice} {APP_CONSTANTS.CURRENCY}</span>
-                                {' '}فقط — تجربة احترافية بدون إعلانات.
+                                {t.home?.upsellText || 'انطلق نحو التميز! فعّل إمكانياتك الكاملة واستمتع بتجربة تعليمية احترافية بدون إعلانات.'}
                             </p>
                             <motion.button
                                 whileHover={{ scale: 1.03 }}
@@ -245,14 +244,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                 onClick={() => onNavigateToSettings('subscription')}
                                 className="shrink-0 flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 transition-colors text-white text-xs font-bold px-3 py-1.5"
                             >
-                                ترقية
+                                {t.home?.upgrade || 'ترقية'}
                                 <ArrowRight size={13} className="rtl:rotate-180" />
                             </motion.button>
                             <button
                                 type="button"
                                 onClick={() => setPromoDismissed(true)}
                                 className="shrink-0 p-1 rounded-lg text-amber-500/70 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800/40 transition-colors"
-                                aria-label="إغلاق"
+                                aria-label={t.home?.close || 'إغلاق'}
                             >
                                 <X size={14} />
                             </button>
@@ -289,13 +288,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                             <div className="space-y-4">
                                 <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/30 text-sm font-bold shadow-sm">
                                     <Target size={16} />
-                                    <span>خطة دراستك الذكية المخصصة نشطة الآن 🚀</span>
+                                    <span>{t.home?.studyPlanActive || 'خطة دراستك الذكية المخصصة نشطة الآن'}</span>
                                 </div>
                                 <h3 className="text-2xl md:text-3xl font-black">
-                                    استمر في خطتك لتحقيق أفضل النتائج!
+                                    {t.home?.studyPlanTitle || 'استمر في خطتك لتحقيق أفضل النتائج!'}
                                 </h3>
                                 <p className="text-white/80 font-medium max-w-xl text-sm md:text-base leading-relaxed">
-                                    المساعد الذكي قام بتصميم خطة تناسب وقتك ومستواك. اضغط لفتح الواجهة ومتابعة مهامك اليومية أو تعديل الخطة.
+                                    {t.home?.studyPlanText || 'المساعد الذكي قام بتصميم خطة تناسب وقتك ومستواك. اضغط لفتح الواجهة ومتابعة مهامك اليومية أو تعديل الخطة.'}
                                 </p>
                             </div>
 
@@ -305,7 +304,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                 className="shrink-0 bg-white text-indigo-600 hover:bg-stone-50 px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg transition-colors group-hover:shadow-white/20"
                             >
                                 <Calendar size={20} />
-                                فتح الخطة
+                                {t.home?.openPlan || 'فتح الخطة'}
                             </motion.button>
                         </div>
                     </motion.div>
@@ -387,8 +386,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         {[
                             { label: t.dashboard?.mastered || 'متقنة', value: stats.byStatus.mastered, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
                             { label: t.dashboard?.new || 'جديدة', value: stats.byStatus.new, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                            { label: 'في المراجعة', value: stats.byStatus.review, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-                            { label: 'جاري التعلم', value: stats.byStatus.learning, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+                            { label: t.home?.reviewStatus || 'في المراجعة', value: stats.byStatus.review, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                            { label: t.home?.learningStatus || 'جاري التعلم', value: stats.byStatus.learning, color: 'text-purple-500', bg: 'bg-purple-500/10' },
                         ].map((item, i) => (
                             <div key={i} className="group/perf flex items-center gap-6 p-6 md:p-8 bg-stone-50/50 dark:bg-gray-800/50 rounded-[2.5rem] border border-stone-100 dark:border-gray-700 hover:border-primary/20 transition-all duration-300 transform hover:scale-105">
                                 <div className={`w-16 h-16 ${item.bg} ${item.color} rounded-[1.5rem] flex items-center justify-center shadow-lg`}>
@@ -420,7 +419,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                 {maxReviewCount === 0 ? (
                     <div className="h-40 flex items-center justify-center text-white/60 font-bold">
-                        لا توجد بيانات مراجعة كافية بعد.
+                        {t.home?.noReviewData || 'لا توجد بيانات مراجعة كافية بعد.'}
                     </div>
                 ) : (
                     <div className="flex items-end justify-between gap-2 h-40">
@@ -445,5 +444,3 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
     );
 };
-
-

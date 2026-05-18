@@ -22,6 +22,7 @@ class ContentCard extends Model
         'front_text',
         'back_text',
         'front_image',
+        'front_image_fit',
         'next_review',
         'interval',
         'reviews',
@@ -46,6 +47,13 @@ class ContentCard extends Model
     public function folder(): BelongsTo
     {
         return $this->belongsTo(ContentFolder::class, 'folder_id');
+    }
+
+    protected function setKeysForSaveQuery($query)
+    {
+        return $query
+            ->where('id', $this->getOriginal('id', $this->getAttribute('id')))
+            ->where('lang', $this->getOriginal('lang', $this->getAttribute('lang')));
     }
 
     protected static function booted(): void

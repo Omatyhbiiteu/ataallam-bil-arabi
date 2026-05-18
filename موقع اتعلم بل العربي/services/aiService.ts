@@ -6,6 +6,7 @@
 
 const API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string);
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
+const isGeminiConfigured = () => Boolean(API_KEY && API_KEY !== "YOUR_API_KEY" && API_KEY !== "YOUR_GEMINI_API_KEY_HERE");
 
 interface ChatMessage {
     role: 'user' | 'model';
@@ -37,7 +38,7 @@ export const aiService = {
 
             if (mode === 'tutor') {
                 systemInstruction = `
-                    You are "Et3alem Bel Araby AI", a voice conversation tutor for the "Et3alem Bel Araby" (اتعلم بالعربي) app.
+                    You are "KeyLang AI", a voice conversation tutor for the "KeyLang" app.
                     The user is learning ${langName} at level ${userLevel}.
                     Your Style: Encouraging, patient, and clear — but always answer ON-TOPIC and IN PROPORTION to what they just said.
 
@@ -76,7 +77,7 @@ export const aiService = {
             } else {
                 // General Chat
                 systemInstruction = `
-                    You are "Et3alem Bel Araby AI", a smart assistant for the "Et3alem Bel Araby" (اتعلم بالعربي) app.
+                    You are "KeyLang AI", a smart assistant for the "KeyLang" app.
                     User is learning ${langName}.
                     Level: ${userLevel}.
                     Write every reply ONLY in ${langName}. Do not use Arabic or other languages in your answers.
@@ -192,6 +193,105 @@ export const aiService = {
         } catch (error) {
             console.error("Deep Dive Error:", error);
             return null;
+        }
+    },
+
+    /**
+     * Returns context-aware dictionary candidates for Arabic input.
+     * Useful for German where one Arabic word can map to multiple precise words.
+     */
+    async getDictionaryCandidates(
+        query: string,
+        targetLanguage: 'en' | 'de',
+        userLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' = 'B1'
+    ): Promise<Array<{
+        word: string;
+        arabic: string;
+        article?: string;
+        plural?: string;
+        partOfSpeech?: string;
+        usage?: string;
+        example?: string;
+        exampleTranslation?: string;
+        confidence?: string;
+        alternatives?: string[];
+        source?: string;
+    }>> {
+        if (!isGeminiConfigured()) return [];
+
+        const langName = targetLanguage === 'de' ? 'German' : 'English';
+        const prompt = `
+            You are a professional Arabic-to-${langName} dictionary editor for a language-learning app.
+            User query: "${query}"
+            Learner level: ${userLevel}
+
+            Return up to 6 precise ${langName} candidates for the Arabic query.
+            Important:
+            - If the Arabic word has multiple meanings, include the most useful different meanings.
+            - For German, include the article and plural when the candidate is a noun.
+            - Keep Arabic explanations short, practical, and suitable for Egyptian/Arab learners.
+            - Examples must be natural in ${langName}; translations must be Arabic.
+            - Do not invent rare literary words unless they are essential.
+
+            Return ONLY a valid JSON array, no markdown:
+            [
+              {
+                "word": "target word",
+                "arabic": "Arabic meaning",
+                "article": "der/die/das if German noun, otherwise empty",
+                "plural": "plural if useful",
+                "partOfSpeech": "noun/verb/adjective/etc",
+                "usage": "Arabic note explaining when to use it",
+                "example": "short natural ${langName} example",
+                "exampleTranslation": "Arabic translation",
+                "confidence": "شائع / يومي / رسمي / سياقي",
+                "alternatives": ["optional close synonym"]
+              }
+            ]
+        `;
+
+        try {
+            const response = await fetch(`${GEMINI_URL}?key=${API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.35,
+                        maxOutputTokens: 1200,
+                        responseMimeType: "application/json"
+                    }
+                }),
+            });
+
+            if (!response.ok) throw new Error("API Error");
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+            const parsed = JSON.parse(text);
+            const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+
+            return list
+                .map((item: any) => ({
+                    word: String(item?.word || '').trim(),
+                    arabic: String(item?.arabic || query).trim(),
+                    article: String(item?.article || '').trim() || undefined,
+                    plural: String(item?.plural || '').trim() || undefined,
+                    partOfSpeech: String(item?.partOfSpeech || 'word').trim(),
+                    usage: String(item?.usage || '').trim() || undefined,
+                    example: String(item?.example || '').trim() || undefined,
+                    exampleTranslation: String(item?.exampleTranslation || '').trim() || undefined,
+                    confidence: String(item?.confidence || 'سياقي').trim(),
+                    alternatives: Array.isArray(item?.alternatives)
+                        ? item.alternatives.map((alt: any) => String(alt || '').trim()).filter(Boolean).slice(0, 6)
+                        : [],
+                    source: 'ai',
+                }))
+                .filter((item: { word: string }) => item.word)
+                .slice(0, 6);
+        } catch (error) {
+            console.error("Dictionary Candidates Error:", error);
+            return [];
         }
     },
 
@@ -328,7 +428,8 @@ export const aiService = {
     async analyzeText(
         text: string,
         targetLanguage: 'en' | 'de',
-        userLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' = 'B1'
+        userLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' = 'B1',
+        sourceLanguage: 'target' | 'ar' = 'target'
     ): Promise<{
         isCorrect: boolean;
         correctedText: string;
@@ -339,7 +440,31 @@ export const aiService = {
     }> {
         const langName = targetLanguage === 'de' ? 'German' : 'English';
 
-        const systemPrompt = `You are an expert ${langName} language tutor. 
+        const systemPrompt = sourceLanguage === 'ar'
+            ? `You are an expert Arabic-to-${langName} translation coach.
+        The student submitted Arabic text and wants a natural ${langName} translation.
+
+        IMPORTANT:
+        - Do NOT mark the Arabic text as wrong just because it is not ${langName}.
+        - Treat Arabic as the SOURCE language.
+        - "correctedText" must be the best natural ${langName} translation.
+        - "isCorrect" means: the Arabic source is clear and has no obvious Arabic spelling/wording mistakes.
+        - Only add "mistakes" for real Arabic source typos, ambiguity, or wording problems. Do not invent mistakes.
+        - Explanations, improvements, and reasons MUST be written in Arabic.
+        - Improvements should explain translation choices, more natural alternatives, and useful grammar notes in ${langName}.
+
+        Return a strict JSON object with this structure:
+        {
+          "isCorrect": boolean,
+          "correctedText": string,
+          "explanation": string,
+          "improvements": string[],
+          "cefrLevel": string,
+          "mistakes": [
+            { "original": "Arabic source issue", "correction": "better Arabic or target translation", "reason": "reason IN ARABIC" }
+          ]
+        }`
+            : `You are an expert ${langName} language tutor. 
         Analyze the following text submitted by a ${userLevel} level student.
         Check for grammar, spelling, and style errors.
         
@@ -347,12 +472,12 @@ export const aiService = {
 
         Return a strict JSON object with this structure:
         {
-          "isCorrect": boolean, // true if the text is grammatically perfect and natural
-          "correctedText": string, // The full corrected version
-          "explanation": string, // A brief, encouraging explanation of the main issues IN ARABIC.
-          "improvements": string[], // List of tips to sound more native IN ARABIC.
-          "cefrLevel": string, // (A1-C2) rating of the input text complexity
-          "mistakes": [ // Array of specific errors found
+          "isCorrect": boolean,
+          "correctedText": string,
+          "explanation": string,
+          "improvements": string[],
+          "cefrLevel": string,
+          "mistakes": [
             { "original": "wrong part", "correction": "right part", "reason": "reason IN ARABIC" }
           ]
         }`;

@@ -34,7 +34,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({ isOpen, onClose,
         // Simulate network delay for realism and to show the animation
         await new Promise(resolve => setTimeout(resolve, 1200));
 
-        const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || '123';
+        const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'change-this-security-code';
 
         if (password === adminPassword) {
             setSuccess(true);

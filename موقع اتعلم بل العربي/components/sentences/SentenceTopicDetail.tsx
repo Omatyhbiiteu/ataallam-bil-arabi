@@ -7,10 +7,11 @@ import { resolveMediaUrl } from '../../utils/resolveMediaUrl';
 
 interface SentenceTopicDetailProps {
     topic: SentenceTopic;
+    learningLang?: 'en' | 'de';
     onBack: () => void;
 }
 
-export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic, onBack }) => {
+export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic, learningLang = 'en', onBack }) => {
     const [activeTab, setActiveTab] = useState<'learn' | 'quiz'>('learn');
     const [quizStarted, setQuizStarted] = useState(false);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -109,7 +110,11 @@ export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic,
                                                     <video
                                                         src={resolvedMedia}
                                                         controls
-                                                        className="w-full h-full object-contain"
+                                                        controlsList="nodownload noplaybackrate"
+                                                        disablePictureInPicture
+                                                        preload="metadata"
+                                                        onContextMenu={(e) => e.preventDefault()}
+                                                        className="w-full h-full object-contain protected-media"
                                                     />
                                                 </div>
                                             );
@@ -131,11 +136,17 @@ export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic,
                                         );
                                     })()
                                 ) : topic.mediaType === 'image' && topic.mediaUrl ? (
-                                    <div className="aspect-video w-full rounded-2xl bg-gray-100 dark:bg-gray-900 overflow-hidden shadow-lg border border-gray-100 dark:border-gray-700">
+                                    <div className="aspect-video w-full rounded-2xl bg-gray-100 dark:bg-gray-900 overflow-hidden shadow-lg border border-gray-100 dark:border-gray-700 relative">
+                                        <img
+                                            src={resolveMediaUrl(topic.mediaUrl)}
+                                            alt=""
+                                            aria-hidden="true"
+                                            className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30"
+                                        />
                                         <img
                                             src={resolveMediaUrl(topic.mediaUrl)}
                                             alt={topic.title}
-                                            className="w-full h-full object-cover"
+                                            className="relative z-[1] w-full h-full object-contain p-3"
                                         />
                                     </div>
                                 ) : (
@@ -162,7 +173,7 @@ export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic,
                                                             <span className="font-bold text-gray-800 dark:text-gray-200" dir="ltr">{sent.original}</span>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => speakText(sent.original, detectLang(sent.original))}
+                                                                onClick={() => speakText(sent.original, detectLang(sent.original) === 'ar' ? 'ar' : learningLang)}
                                                                 className="text-gray-400 hover:text-indigo-500 shrink-0"
                                                                 title="نطق (TTS)"
                                                             >
@@ -174,7 +185,9 @@ export const SentenceTopicDetail: React.FC<SentenceTopicDetailProps> = ({ topic,
                                                             <audio
                                                                 className="w-full mt-3 max-w-md"
                                                                 controls
+                                                                controlsList="nodownload noplaybackrate"
                                                                 preload="metadata"
+                                                                onContextMenu={(e) => e.preventDefault()}
                                                                 src={resolveMediaUrl(sent.audioUrl)}
                                                             />
                                                         ) : null}

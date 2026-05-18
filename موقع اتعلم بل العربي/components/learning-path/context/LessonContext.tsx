@@ -13,6 +13,7 @@ interface LessonContextType {
     activeLessonIndex: number;
     timeSpent: number;
     isBookmarked: boolean;
+    isLastLessonInLevel: boolean;
     lessonNotes: Note[];
     lessonRating?: { rating: number, comment?: string };
     // Actions

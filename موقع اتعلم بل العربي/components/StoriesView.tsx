@@ -27,6 +27,76 @@ interface StoriesViewProps {
     onRequirePro?: (message: string) => void;
 }
 
+type TextDirection = 'auto' | 'rtl' | 'ltr';
+
+const RTL_TEXT_RE = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+
+const resolveTextDirection = (configured: TextDirection | undefined, text = ''): 'rtl' | 'ltr' => {
+    if (configured === 'rtl' || configured === 'ltr') return configured;
+    return RTL_TEXT_RE.test(text) ? 'rtl' : 'ltr';
+};
+
+const directionTextClass = (direction: 'rtl' | 'ltr') => (
+    direction === 'rtl' ? 'text-right' : 'text-left'
+);
+
+const applySpeechLanguage = (utterance: SpeechSynthesisUtterance, speechLang: 'en' | 'de') => {
+    const fallbackLang = speechLang === 'de' ? 'de-DE' : 'en-US';
+    utterance.lang = fallbackLang;
+
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    const prefix = speechLang === 'de' ? 'de' : 'en';
+    const availableVoices = window.speechSynthesis.getVoices();
+    const preferredVoice =
+        availableVoices.find(voice => voice.lang.toLowerCase().startsWith(prefix) && /google|microsoft|natural|online/i.test(voice.name)) ||
+        availableVoices.find(voice => voice.lang.toLowerCase().startsWith(prefix));
+
+    if (preferredVoice) {
+        utterance.voice = preferredVoice;
+        utterance.lang = preferredVoice.lang;
+    }
+};
+
+const SmartStoryImage: React.FC<{
+    src: string;
+    alt?: string;
+    layoutId?: string;
+    className?: string;
+    containClassName?: string;
+}> = ({ src, alt = '', layoutId, className = '', containClassName = 'p-3' }) => {
+    const [fit, setFit] = useState<'cover' | 'contain'>('cover');
+
+    const handleLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+        const img = event.currentTarget;
+        if (!img.naturalWidth || !img.naturalHeight) return;
+        const ratio = img.naturalWidth / img.naturalHeight;
+        setFit(ratio >= 1.25 ? 'cover' : 'contain');
+    };
+
+    return (
+        <>
+            <img
+                src={src}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+                className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-45"
+            />
+            <m.img
+                layoutId={layoutId}
+                src={src}
+                alt={alt}
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+                onLoad={handleLoad}
+                className={`relative z-[1] w-full h-full ${fit === 'cover' ? 'object-cover' : `object-contain ${containClassName}`} ${className}`}
+            />
+        </>
+    );
+};
+
 const playFeedbackSound = (type: 'success' | 'error') => {
     if (typeof window === 'undefined') return;
     try {
@@ -142,7 +212,7 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
         try {
             if (window.speechSynthesis) window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(cleaned);
-            utterance.lang = lang === 'de' ? 'de-DE' : 'en-US';
+            applySpeechLanguage(utterance, lang);
             utterance.rate = Math.max(0.5, Math.min(2, storyPlaybackRate));
             utterance.pitch = 1;
             window.speechSynthesis.speak(utterance);
@@ -172,7 +242,9 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
         const textToSpeak = getStoryWords.slice(startIndex).map(w => w.word).join(' ');
         const startCharOffset = getStoryWords[startIndex]?.startIndex || 0;
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.lang = 'en-US'; utterance.rate = rateToUse; utterance.pitch = 1;
+        applySpeechLanguage(utterance, lang);
+        utterance.rate = rateToUse;
+        utterance.pitch = 1;
         utterance.onboundary = (event) => {
             if (event.name === 'word') {
                 const currentGlobalCharIndex = startCharOffset + event.charIndex;
@@ -185,7 +257,7 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
         speechUtteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
         setIsSpeakingStory(true);
-    }, [selectedStory, getStoryWords, storyPlaybackRate]);
+    }, [selectedStory, getStoryWords, storyPlaybackRate, lang]);
 
     const toggleStoryPlayPause = () => {
         if (isSpeakingStory) cancelStorySpeech();
@@ -707,14 +779,15 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                 aria-label={isLocked ? `قصة مقفولة — ${story.title}` : `فتح قصة ${story.title}`}
                 className={`group bg-white dark:bg-gray-800 rounded-[2rem] md:rounded-3xl overflow-hidden shadow-warm dark:shadow-none border border-stone-100 dark:border-gray-700 transition-shadow duration-300 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${isLocked ? 'cursor-not-allowed opacity-95' : 'cursor-pointer hover:shadow-2xl hover:shadow-primary/10'}`}
             >
-                <div className="h-40 md:h-48 overflow-hidden relative">
-                    <m.img
+                <div className="aspect-video overflow-hidden relative bg-slate-950">
+                    <SmartStoryImage
                         layoutId={`story-img-${story.id}`}
                         src={story.image}
                         alt={story.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        containClassName="p-2"
+                        className="transition-transform duration-700 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4 md:p-6">
+                    <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4 md:p-6">
                         <div className="flex justify-between w-full items-center">
                             <span className="bg-white/20 backdrop-blur-md text-white px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-bold border border-white/30">{story.level}</span>
                             <div className="flex gap-2">
@@ -768,15 +841,18 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
             );
         }
 
+        const storyContentDirection = resolveTextDirection(selectedStory.contentDirection, selectedStory.content);
+        const storyTranslationDirection = resolveTextDirection(selectedStory.translationDirection, selectedStory.translation || '');
+
         return (
-            <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-300">
-                <div className="sticky top-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-stone-200 dark:border-gray-700 z-30 px-3 py-2 md:px-4 md:py-3 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-2 md:gap-3">
-                        <button onClick={() => { setSelectedStory(null); cancelStorySpeech(); }} className="p-2 rounded-full hover:bg-amber-50 dark:hover:bg-gray-800 transition ltr:rotate-180 rtl:rotate-0"><ArrowRight className="text-gray-600 dark:text-gray-300 w-5 h-5 md:w-6 md:h-6" /></button>
-                        <h2 className="font-bold text-gray-800 dark:text-white line-clamp-1 text-sm md:text-base max-w-[120px] sm:max-w-xs">{selectedStory.title}</h2>
+            <div className="story-detail-page site-responsive-root min-h-screen bg-stone-50 dark:bg-gray-950 transition-colors duration-300">
+                <div className="sticky top-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-stone-200 dark:border-gray-700 z-30 px-3 py-2.5 sm:px-4 lg:px-6 md:py-3 flex items-center justify-between gap-2 shadow-sm">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+                        <button onClick={() => { setSelectedStory(null); cancelStorySpeech(); }} className="shrink-0 p-2 rounded-full hover:bg-amber-50 dark:hover:bg-gray-800 transition ltr:rotate-180 rtl:rotate-0"><ArrowRight className="text-gray-600 dark:text-gray-300 w-5 h-5 md:w-6 md:h-6" /></button>
+                        <h2 className="min-w-0 flex-1 font-bold text-gray-800 dark:text-white line-clamp-1 text-sm md:text-base">{selectedStory.title}</h2>
                     </div>
 
-                    <div className="flex items-center gap-1 md:gap-2">
+                    <div className="flex shrink-0 items-center gap-1 md:gap-2">
                         <button
                             onClick={() => setIsFocusMode(!isFocusMode)}
                             className={`p-2 md:p-2.5 rounded-full border transition-all ${isFocusMode ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'} flex items-center gap-2 text-xs font-bold`}
@@ -803,7 +879,7 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                     transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                                    className="absolute top-full left-0 mt-4 w-72 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-5 z-50 origin-top-left ring-1 ring-black/5"
+                                    className="absolute top-full left-0 mt-3 w-[min(18rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl md:rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] border border-gray-100 dark:border-gray-700 p-4 md:p-5 flex flex-col gap-4 md:gap-5 z-50 origin-top-left ring-1 ring-black/5"
                                 >
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
@@ -869,26 +945,27 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                 <m.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`grid ${showTranslation ? 'grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8' : 'grid-cols-1'} mx-auto transition-all duration-500 ${isFocusMode ? 'px-10 py-8 md:p-8 max-w-3xl' : 'p-4 md:p-8 max-w-7xl'}`}
+                    className={`grid ${showTranslation ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] gap-5 md:gap-8' : 'grid-cols-1'} mx-auto w-full transition-all duration-500 ${isFocusMode ? 'max-w-3xl px-4 sm:px-6 py-6 md:py-8' : 'max-w-[1180px] px-3 sm:px-5 lg:px-8 py-5 md:py-8'}`}
                 >
-                    <div className="prose dark:prose-invert max-w-none text-left" dir="ltr">
+                    <div className={`prose dark:prose-invert max-w-none ${directionTextClass(storyContentDirection)}`} dir={storyContentDirection}>
                         <m.div
-                            className={`group relative rounded-2xl md:rounded-[2.5rem] overflow-hidden mb-8 md:mb-12 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/5 dark:border-gray-700/50 w-full transition-all duration-700 ease-out ${showTranslation ? 'h-48 md:h-80' : 'h-[300px] md:h-[500px]'}`}
+                            className={`story-media-frame ${showTranslation ? 'story-media-frame-compact' : ''} group protected-media relative rounded-2xl md:rounded-[2rem] overflow-hidden mb-6 md:mb-8 shadow-[0_18px_45px_rgba(0,0,0,0.22)] border border-white/5 dark:border-gray-700/50 w-full bg-slate-950 transition-all duration-700 ease-out`}
                         >
-                            <m.img
+                            <SmartStoryImage
                                 layoutId={`story-img-${selectedStory.id}`}
                                 src={selectedStory.image}
-                                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                                alt=""
+                                alt={selectedStory.title}
+                                containClassName="p-3 md:p-5"
+                                className="transition-transform duration-1000 group-hover:scale-[1.03]"
                             />
 
                             {!showTranslation && (
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent flex flex-col justify-end p-6 md:p-10">
+                                <div className="absolute inset-0 z-20 bg-gradient-to-t from-black/95 via-black/20 to-transparent flex flex-col items-end justify-end p-6 md:p-10 text-right" dir="rtl">
                                     <m.div
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: 0.2, duration: 0.6 }}
-                                        className="space-y-2 md:space-y-4"
+                                        className="space-y-2 md:space-y-4 max-w-[min(460px,92%)]"
                                     >
                                         <div className="flex items-center gap-3">
                                             <span className="inline-block bg-primary px-3 py-1 rounded-lg text-[10px] md:text-xs font-black tracking-widest uppercase text-white shadow-xl">
@@ -896,7 +973,7 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                                             </span>
                                             <div className="h-px w-12 bg-white/30"></div>
                                         </div>
-                                        <h1 className="text-3xl md:text-5xl font-black text-white leading-tight drop-shadow-2xl tracking-tight">
+                                        <h1 className="story-hero-title text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white leading-tight drop-shadow-2xl tracking-tight">
                                             {selectedStory.title}
                                         </h1>
                                         <div className="flex items-center gap-3 pt-1">
@@ -933,7 +1010,7 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                                 </div>
                             )}
                         </m.div>
-                        <div style={{ fontSize: `${storyFontSize}rem`, lineHeight: '1.8' }} className="font-serif leading-relaxed text-gray-800 dark:text-gray-200 tracking-wide pb-20">
+                        <div style={{ '--story-font-size': `${storyFontSize}rem` } as React.CSSProperties} className="story-reading-text text-gray-800 dark:text-gray-200 pb-14 md:pb-20">
                             {getStoryWords.map((item, i) => (
                                 <React.Fragment key={i}>
                                     <m.span
@@ -959,11 +1036,11 @@ export const StoriesView: React.FC<StoriesViewProps> = ({ stories, t, onQuizComp
                                 initial={{ opacity: 0, x: 50 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 50 }}
-                                className="prose dark:prose-invert max-w-none text-right border-t pt-6 md:pt-8 lg:border-t-0 lg:border-l lg:pl-8 border-stone-200 dark:border-gray-700"
-                                dir="rtl"
+                                className={`prose dark:prose-invert max-w-none ${directionTextClass(storyTranslationDirection)} border-t pt-6 md:pt-8 xl:border-t-0 xl:border-l xl:pl-8 border-stone-200 dark:border-gray-700`}
+                                dir={storyTranslationDirection}
                             >
                                 <h3 className="text-lg md:text-xl font-bold mb-4 text-primary flex items-center gap-2"><Languages size={20} /> {storiesText.translationTitle}</h3>
-                                <div style={{ fontSize: `${storyFontSize}rem`, lineHeight: '1.8' }} className="font-sans leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedStory.translation}</div>
+                                <div style={{ '--story-font-size': `${storyFontSize}rem` } as React.CSSProperties} className="story-reading-text text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedStory.translation}</div>
                             </m.div>
                         )}
                     </AnimatePresence>

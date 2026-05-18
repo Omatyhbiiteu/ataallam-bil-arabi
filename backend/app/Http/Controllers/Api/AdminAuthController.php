@@ -55,7 +55,7 @@ class AdminAuthController extends Controller
         }
 
         $email = strtolower((string) env('ADMIN_BOOTSTRAP_EMAIL', 'admin@et3alem.local'));
-        $password = (string) env('ADMIN_BOOTSTRAP_PASSWORD', 'admin123');
+        $password = (string) env('ADMIN_BOOTSTRAP_PASSWORD', 'change-this-admin-password');
         $name = (string) env('ADMIN_BOOTSTRAP_NAME', 'Super Admin');
 
         AdminUser::query()->create([

@@ -22,6 +22,7 @@ backend/.env.*
 
 # سجلات وأنظمة
 *.log
+.runtime-logs/
 .DS_Store
 Thumbs.db
 

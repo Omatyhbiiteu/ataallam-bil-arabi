@@ -69,7 +69,7 @@ export const Toast: React.FC<ToastProps> = ({ message, isVisible, onClose, type 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
+            className="fixed inset-0 z-[120000] flex items-center justify-center p-4 sm:p-6"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="toast-modal-title"
@@ -135,7 +135,7 @@ export const Toast: React.FC<ToastProps> = ({ message, isVisible, onClose, type 
           animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
           exit={{ opacity: 0, y: -50, x: "-50%", scale: 0.9 }}
           transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          className="fixed top-10 left-1/2 z-[9999] flex items-center justify-center w-full max-w-md pointer-events-none"
+          className="fixed top-10 left-1/2 z-[120000] flex items-center justify-center w-full max-w-md pointer-events-none"
           role="status"
           aria-live="polite"
         >

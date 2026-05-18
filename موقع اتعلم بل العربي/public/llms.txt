@@ -1,31 +1,31 @@
-# اتعلم بالعربي Pro | Et3alem Bel Araby
+# مفتاح اللغة | KeyLang
 
-Professional platform for mastering languages using AI, Spaced Repetition (SRS), and Interactive Stories.
+Arabic-first platform for learning English and German using AI tutoring, spaced repetition (SRS), custom flashcards, pronunciation support, and interactive stories.
 
 ## Platform Facts
 
-- **Name**: اتعلم بالعربي Pro (Et3alem Bel Araby)
-- **Primary Function**: Language learning through custom flashcards and AI interaction.
-- **Support**: 12+ languages including English, Arabic, Spanish, etc.
+- **Name**: مفتاح اللغة (KeyLang)
+- **Primary Function**: English and German learning for Arabic-speaking learners through guided lessons, custom flashcards, AI feedback, and contextual practice.
+- **Supported Learning Languages**: English and German.
 - **Core Technology**: 
-  - AI Tutor: Real-time grammar correction and natural conversation.
-  - SRS: Spaced Repetition System for long-term memory retention.
-  - Interactive Stories: Context-based listening and understanding.
-- **Scale**: Over 50,000 active users.
-- **Data Stat**: Over 1,000,000 words saved by users.
+  - AI Tutor: grammar correction, examples, explanation, and conversation practice.
+  - SRS: spaced repetition scheduling for long-term memory.
+  - Smart Flashcards: user-created cards organized in folders.
+  - Interactive Stories: context-based reading, listening, and comprehension.
+  - Admin Content System: managed lessons, stories, cards, settings, and marketing content.
 - **Pricing**: Highly affordable, approx. 2 EGP/day (~$0.04 USD).
 - **Target Market**: Primarily Arabic-speaking learners.
 
 ## Useful Links
 
-- [Homepage](https://et3alem-bel-araby.com/)
-- [Login/Start](https://et3alem-bel-araby.com/login)
-- [Pricing](https://et3alem-bel-araby.com/#pricing)
-- [Features](https://et3alem-bel-araby.com/#features)
+- [Homepage](https://keylang.app/)
+- [Login/Start](https://keylang.app/login)
+- [Pricing](https://keylang.app/#pricing)
+- [Features](https://keylang.app/#features)
 
 ## FAQ Summary
 
-- **What is the platform?** A web-app for learning languages via smart cards and AI feedback.
+- **What is the platform?** A web app for learning English and German through smart cards, lessons, stories, pronunciation, and AI feedback.
 - **Is there a free trial?** Yes, full 24-hour access with no credit card required.
-- **How does AI help?** It corrects sentences, explains grammar, and provides 3 live examples per query.
-- **What is SRS?** A smart algorithm that presents cards just before you forget them.
+- **How does AI help?** It corrects sentences, explains grammar, gives examples, and supports conversation practice.
+- **What is SRS?** A smart review system that schedules cards around memory and performance.

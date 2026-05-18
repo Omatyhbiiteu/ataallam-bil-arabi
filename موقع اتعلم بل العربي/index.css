@@ -1,6 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cairo:wght@200..1000&family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+
+@source "./**/*.{html,ts,tsx}";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: var(--font-ui), sans-serif;
+    --font-latin: var(--font-latin), sans-serif;
+    --font-arabic: var(--font-arabic), sans-serif;
+    --color-primary: var(--primary-color, #c0392b);
+    --color-secondary: var(--secondary-color, #f39c12);
+    --color-accent: var(--accent-color, #e74c3c);
+    --color-success: #27ae60;
+    --color-info: #2980b9;
+    --color-background: var(--bg-color, #fffdf7);
+    --color-card: var(--card-bg, #ffffff);
+    --color-dark-bg: var(--bg-color, #0f172a);
+    --color-dark-card: var(--card-bg, #1e293b);
+    --color-dark-border: var(--glass-border, #334155);
+    --color-dark-text: var(--text-main, #f8fafc);
+    --shadow-warm: 0 4px 20px -2px rgba(120, 113, 108, 0.08);
+    --shadow-warm-lg: 0 10px 30px -3px rgba(120, 113, 108, 0.12);
+    --shadow-warm-hover: 0 20px 25px -5px rgba(120, 113, 108, 0.15), 0 8px 10px -6px rgba(120, 113, 108, 0.1);
+    --animate-fade-in: fadeIn 0.5s ease-out;
+    --animate-slide-up: slideUp 0.4s ease-out;
+    --animate-shake: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    --animate-bounce-custom: bounceCustom 0.5s;
+}
 
 :root {
+    --font-arabic: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Cairo', sans-serif;
+    --font-latin: 'Lexend', 'Inter', 'Outfit', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', sans-serif;
+    --font-ui: var(--font-arabic);
+
     --primary-color: #c0392b;
     --primary-rgb: 192, 57, 43;
     --secondary-color: #f39c12;
@@ -50,41 +81,86 @@
     --section-gap: clamp(24px, 4vw, 40px);
     --cta-height: 52px;
 
-    /* Responsive Standard Scaling */
-    /* Mobile First: Standard readability */
+    /* Stable rem baseline. Layout density is handled with containers, not root scaling. */
     --app-font-size: 16px;
+    --page-inline-padding: clamp(1rem, 2.4vw, 3rem);
+    --page-block-padding: clamp(1rem, 2.2vw, 2.5rem);
+    --page-max-width: 1760px;
 }
 
-/* Tablet: Slightly tighter */
+.prose:not(.max-w-none) {
+    max-width: 65ch;
+}
+
+.prose.max-w-none {
+    max-width: none;
+}
+
+.prose {
+    color: inherit;
+    line-height: 1.9;
+}
+
+.prose :where(p, ul, ol, blockquote, pre) {
+    margin-block: 1em;
+}
+
+.prose :where(h1, h2, h3, h4) {
+    margin-block: 1.25em 0.55em;
+    font-weight: 900;
+    line-height: 1.25;
+    color: inherit;
+}
+
+.prose :where(ul, ol) {
+    padding-inline-start: 1.5em;
+}
+
+.prose :where(li) {
+    margin-block: 0.35em;
+}
+
+.prose :where(a) {
+    color: var(--primary-color);
+    font-weight: 800;
+}
+
+.dark .prose-invert {
+    color: #e5e7eb;
+}
+
+/* Keep Tailwind rem-based spacing consistent across screen sizes. */
 @media (min-width: 768px) {
     :root {
-        --app-font-size: 15.25px;
+        --app-font-size: 16px;
     }
 }
 
-/* Laptop / Small Desktop: Optimized Density */
 @media (min-width: 1024px) {
     :root {
-        --app-font-size: 14.75px;
+        --app-font-size: 16px;
     }
 }
 
-/* Large Desktop (FHD): The "Sweet Spot" User Liked */
 @media (min-width: 1440px) {
     :root {
-        --app-font-size: 14.5px;
+        --app-font-size: 16px;
     }
 }
 
-/* High-Res / Ultra Wide (2K/4K): Max Density */
 @media (min-width: 1920px) {
     :root {
-        --app-font-size: 14px;
+        --app-font-size: 16px;
     }
 }
 
 :root {
     font-size: var(--app-font-size);
+}
+
+html[lang="en"],
+html[lang="de"] {
+    --font-ui: var(--font-latin);
 }
 
 .dark {
@@ -104,11 +180,163 @@
 
 body {
     font-size: var(--app-font-size);
-    font-family: 'Cairo', 'Outfit', sans-serif;
+    font-family: var(--font-ui);
     background-color: var(--bg-color);
     color: var(--text-main);
     transition: background-color 0.3s ease, color 0.3s ease;
     overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.site-responsive-root {
+    width: 100%;
+    min-width: 0;
+    container-type: inline-size;
+}
+
+.site-responsive-root :where(main, section, article, header, footer, nav, aside, form, .surface-card, .surface-muted, .glass-panel) {
+    min-width: 0;
+}
+
+.site-responsive-root :where(img, video, canvas, svg) {
+    max-width: 100%;
+}
+
+.site-responsive-root :where(h1, h2, h3, h4, p, a, button, label, span) {
+    overflow-wrap: anywhere;
+}
+
+.site-responsive-root :where(button, input, select, textarea) {
+    max-width: 100%;
+}
+
+.site-responsive-root :where(.text-6xl, .text-7xl, .text-8xl, .text-9xl) {
+    letter-spacing: 0;
+}
+
+.story-detail-page .story-reading-text {
+    font-size: clamp(1rem, var(--story-font-size, 1.25rem), 1.45rem);
+    line-height: 1.85;
+}
+
+.story-detail-page .story-media-frame {
+    height: clamp(14rem, 32vw, 30rem);
+}
+
+.story-detail-page .story-media-frame-compact {
+    height: clamp(12rem, 24vw, 20rem);
+}
+
+.lesson-detail-page .lesson-content-text {
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    line-height: 2;
+}
+
+@media (min-width: 768px) {
+    .story-detail-page .story-reading-text {
+        font-size: clamp(1.05rem, var(--story-font-size, 1.25rem), 1.65rem);
+        line-height: 1.9;
+    }
+
+    .lesson-detail-page .lesson-content-text {
+        font-size: clamp(1.05rem, 1.45vw, 1.38rem);
+        line-height: 2.1;
+    }
+}
+
+@media (max-width: 767px) {
+    .site-responsive-root :where(.p-8, .p-10, .p-12, .md\:p-8, .md\:p-10, .md\:p-12, .lg\:p-10, .lg\:p-12) {
+        padding: clamp(1rem, 4vw, 1.35rem) !important;
+    }
+
+    .site-responsive-root :where(.px-8, .px-10, .px-12, .md\:px-8, .md\:px-10, .md\:px-12) {
+        padding-inline: clamp(1rem, 4vw, 1.35rem) !important;
+    }
+
+    .site-responsive-root :where(.py-16, .py-20, .py-24, .py-28, .py-32, .md\:py-20, .md\:py-24, .md\:py-28, .md\:py-32) {
+        padding-block: clamp(3rem, 12vw, 4.5rem) !important;
+    }
+
+    .site-responsive-root :where(.rounded-\[2\.5rem\], .rounded-\[2\.75rem\], .rounded-\[2\.85rem\], .rounded-\[3rem\], .rounded-\[4rem\]) {
+        border-radius: 1.5rem !important;
+    }
+
+    .site-responsive-root :where(.text-5xl, .text-6xl, .text-7xl, .text-8xl, .text-9xl) {
+        font-size: clamp(2rem, 10.5vw, 3rem) !important;
+        line-height: 1.12 !important;
+    }
+
+    .site-responsive-root :where(.gap-10, .gap-12, .md\:gap-10, .md\:gap-12) {
+        gap: 1.5rem !important;
+    }
+
+    .site-responsive-root :where(.min-h-screen) {
+        min-height: 100svh;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+    .site-responsive-root :where(.lg\:p-12, .p-12) {
+        padding: 2rem !important;
+    }
+
+    .site-responsive-root :where(.text-7xl, .text-8xl, .text-9xl) {
+        font-size: clamp(3.25rem, 7vw, 4.5rem) !important;
+        line-height: 1.08 !important;
+    }
+}
+
+input,
+textarea,
+select,
+button {
+    font-family: inherit;
+}
+
+img,
+video,
+audio,
+.protected-media {
+    -webkit-touch-callout: none;
+    user-select: none;
+}
+
+img,
+video {
+    -webkit-user-drag: none;
+}
+
+.font-language,
+.story-reading-text {
+    font-family: var(--font-latin);
+    font-feature-settings: "kern" 1, "liga" 1;
+    letter-spacing: 0;
+}
+
+.story-reading-text {
+    word-spacing: 0.04em;
+}
+
+.font-latin {
+    font-family: var(--font-latin);
+}
+
+.font-arabic,
+[lang="ar"] {
+    font-family: var(--font-arabic);
+}
+
+[lang="en"],
+[lang="de"] {
+    font-family: var(--font-latin);
 }
 
 /* Glassmorphism */

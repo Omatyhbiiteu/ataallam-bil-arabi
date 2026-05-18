@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AddCardResult, Folder, Card, User as UserType } from '../types';
-import { Plus, Trash2, ArrowRight, ShieldCheck, User, Folder as FolderIcon, X, Layers, PlayCircle, Zap, Volume2, ArrowLeft, Image as ImageIcon, Clock, Search, Filter, ArrowUpDown, RotateCw, MoreVertical, LayoutGrid, List as ListIcon, CheckCircle, Brain, Flame, Edit2, Home, ChevronRight, ChevronDown, Palette } from 'lucide-react';
-import { speakText } from '../services/ttsService';
+import { AddCardResult, Folder, Card, User as UserType, CardImageAsset, CardImageQuota } from '../types';
+import { Plus, Trash2, ArrowRight, ShieldCheck, User, Folder as FolderIcon, X, Layers, PlayCircle, Zap, Volume2, ArrowLeft, Image as ImageIcon, Clock, Search, Filter, ArrowUpDown, RotateCw, MoreVertical, LayoutGrid, List as ListIcon, CheckCircle, Brain, Flame, Edit2, Home, ChevronRight, ChevronDown, Palette, Sparkles, Loader2 } from 'lucide-react';
+import { detectLang, speakText } from '../services/ttsService';
+import { CardImageAssetAPI } from '../services/apiClient';
 import { ConfirmModal } from './ConfirmModal';
 import { Toast } from './Toast';
 import { FolderItem } from './FolderItem';
 import { FolderFormModal } from './FolderFormModal';
 import { EmptyState } from './EmptyState';
 import { canUserManageCard, canUserManageFolder } from '../utils/folderPermissions';
+import { resolveMediaUrl } from '../utils/resolveMediaUrl';
 
 interface FoldersViewProps {
     user: UserType | null;
@@ -17,7 +19,7 @@ interface FoldersViewProps {
     onAddFolder: (name: string, color: string, parentId?: string) => void;
     onDeleteFolder: (id: string) => void;
     onEditFolder: (id: string, updates: Partial<Folder>) => void;
-    onAddCard: (card: Partial<Card>) => void | Promise<boolean | void>;
+    onAddCard: (card: Partial<Card>) => void | Promise<AddCardResult | void>;
     onEditCard: (id: string, updates: Partial<Card>) => void;
     onDeleteCard: (id: string) => void;
     onEditCards: (ids: string[], updates: Partial<Card>) => void;
@@ -25,7 +27,7 @@ interface FoldersViewProps {
     onDeleteAll: () => void;
     onStartSession: (folderId: string | null, mode: 'due' | 'all', specificCardIds?: string[]) => void;
     onNavigate: (tab: string) => void;
-    onRefreshData?: () => Promise<void> | void;
+    onRefreshData?: () => Promise<unknown> | void;
     t: any;
     currentFolderId?: string | null;
     onFolderChange?: (id: string | null) => void;
@@ -41,6 +43,7 @@ const CountdownTimer = ({ nextReview, now }: { nextReview: number; now: number }
     const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
     const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
     let label = '';
     if (days > 365) {
@@ -48,15 +51,18 @@ const CountdownTimer = ({ nextReview, now }: { nextReview: number; now: number }
     } else if (days > 30) {
         label = `${Math.floor(days / 30)} شهر`;
     } else if (days > 0) {
-        label = `${days} يوم`;
+        label = `${days} يوم${hours > 0 ? ` ${hours} س` : ''}`;
     } else if (hours > 0) {
-        label = `${hours} ساعة`;
+        label = `${hours} س ${minutes.toString().padStart(2, '0')} د`;
     } else {
-        label = `${minutes} دقيقة`;
+        label = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
 
     return (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 dark:bg-gray-800 rounded-lg text-xs font-bold group-hover:bg-primary/10 group-hover:text-primary transition-colors whitespace-nowrap">
+        <div
+            className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 dark:bg-gray-800 rounded-lg text-xs font-bold group-hover:bg-primary/10 group-hover:text-primary transition-colors whitespace-nowrap"
+            title={`يفتح في ${new Date(nextReview).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}`}
+        >
             <Clock size={14} className={days === 0 ? "animate-pulse" : ""} />
             <span className="font-mono pt-0.5">{label}</span>
         </div>
@@ -114,6 +120,27 @@ function paidCardSentenceDailyLimit(plan: string | undefined): number | null {
     return null;
 }
 
+function hasActiveCardImagePlan(plan: UserType['plan'] | undefined, activeSubscription: boolean): boolean {
+    return activeSubscription && (plan === 'silver' || plan === 'pro' || plan === 'enterprise');
+}
+
+function isUnlimitedCardImagePlan(plan: UserType['plan'] | undefined): boolean {
+    return plan === 'pro' || plan === 'enterprise';
+}
+
+function formatImageQuotaCountdown(totalSeconds: number): string {
+    const seconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function formatImageQuotaResetText(totalSeconds: number): string {
+    if (totalSeconds <= 0) return 'بعد قليل';
+    return `غداً بعد ${formatImageQuotaCountdown(totalSeconds)}`;
+}
+
 const SORT_OPTIONS: { value: 'newest' | 'oldest' | 'due' | 'hard' | 'alpha'; label: string }[] = [
     { value: 'newest', label: 'الأحدث' },
     { value: 'oldest', label: 'الأقدم' },
@@ -121,6 +148,19 @@ const SORT_OPTIONS: { value: 'newest' | 'oldest' | 'due' | 'hard' | 'alpha'; lab
     { value: 'hard', label: 'الأصعب' },
     { value: 'alpha', label: 'ترتيب أبجدي' }
 ];
+
+type CardImageFit = 'wide' | 'portrait';
+type DetectedImageFit = CardImageFit | 'unknown';
+
+const CARD_IMAGE_FIT_OPTIONS: Array<{ value: CardImageFit; label: string; description: string }> = [
+    { value: 'wide', label: 'عريض', description: 'مناسب للصور 16:9 أو الصور الأفقية' },
+    { value: 'portrait', label: 'طولي', description: 'مناسب للصور 9:16 أو الشخصيات' },
+];
+
+const inferImageFit = (width: number, height: number): CardImageFit => {
+    if (!width || !height) return 'wide';
+    return width / height < 0.85 ? 'portrait' : 'wide';
+};
 
 export const FoldersView: React.FC<FoldersViewProps> = ({
     user, folders, cards, onAddFolder, onDeleteFolder, onEditFolder, onAddCard, onEditCard, onDeleteCard, onEditCards, onDeleteCards, onDeleteAll, onStartSession, onNavigate, onRefreshData, t,
@@ -166,28 +206,78 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'new' | 'learning' | 'review' | 'mastered'>('all');
     const [includeSubfolders, setIncludeSubfolders] = useState(false);
-    const [sortOption, setSortOption] = useState<'newest' | 'oldest' | 'due' | 'hard' | 'alpha'>('newest');
+    const [sortOption, setSortOption] = useState<'newest' | 'oldest' | 'due' | 'hard' | 'alpha'>('oldest');
     const [sortMenuOpen, setSortMenuOpen] = useState(false);
     const [visibleCount, setVisibleCount] = useState(24);
     const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set());
     const [flippedCardIds, setFlippedCardIds] = useState<string[]>([]);
+    const [detectedImageFits, setDetectedImageFits] = useState<Record<string, DetectedImageFit>>({});
     const [moveTargetFolderId, setMoveTargetFolderId] = useState('');
+
+    const speakCardText = useCallback((text: string) => {
+        const detected = detectLang(text);
+        speakText(text, detected === 'ar' ? 'ar' : targetLanguage);
+    }, [targetLanguage]);
+
+    const handleCardImageLoad = useCallback((cardId: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+        const img = event.currentTarget;
+        const detected = inferImageFit(img.naturalWidth, img.naturalHeight);
+        setDetectedImageFits((prev) => (prev[cardId] === detected ? prev : { ...prev, [cardId]: detected }));
+    }, []);
+
+    const resolveCardImageFit = useCallback((card: Card): CardImageFit => {
+        if (card.frontImageFit === 'portrait' || card.frontImageFit === 'wide') {
+            return card.frontImageFit;
+        }
+        return detectedImageFits[card.id] === 'portrait' ? 'portrait' : 'wide';
+    }, [detectedImageFits]);
+    // Accordion for sub-folders (mobile-only collapse)
+    const [subFoldersOpen, setSubFoldersOpen] = useState(false);
     const loadMoreRef = useRef<HTMLDivElement | null>(null);
     const sortMenuRef = useRef<HTMLDivElement | null>(null);
 
     // Card Form State
     const [editingCardId, setEditingCardId] = useState<string | null>(null);
-    const [cardForm, setCardForm] = useState({ front: '', back: '', image: '' });
+    const [cardForm, setCardForm] = useState<{ front: string; back: string; image: string; imageFit: CardImageFit }>({ front: '', back: '', image: '', imageFit: 'wide' });
     const [showPremiumModal, setShowPremiumModal] = useState(false);
     const [isAISentenceGenerating, setIsAISentenceGenerating] = useState(false);
     const [cardSentenceQuotaTick, setCardSentenceQuotaTick] = useState(0);
     const [isSavingCard, setIsSavingCard] = useState(false);
     const [aiUsageCount, setAiUsageCount] = useState(() => Number(localStorage.getItem('ai_usage_count') || 0));
+    const [showImagePickerModal, setShowImagePickerModal] = useState(false);
+    const [imageSearchText, setImageSearchText] = useState('');
+    const [imageAssets, setImageAssets] = useState<CardImageAsset[]>([]);
+    const [imageQuota, setImageQuota] = useState<CardImageQuota | null>(null);
+    const [imagePickerError, setImagePickerError] = useState('');
+    const [imageSearchLoading, setImageSearchLoading] = useState(false);
+    const [imageUseLoadingId, setImageUseLoadingId] = useState<string | null>(null);
+    const [imageQuotaNow, setImageQuotaNow] = useState(Date.now());
+    const hasSoonLockedCard = useMemo(() => {
+        const currentTime = Date.now();
+        return cards.some((card) => card.nextReview > currentTime && card.nextReview - currentTime <= 60 * 60 * 1000);
+    }, [cards]);
 
     useEffect(() => {
-        const interval = setInterval(() => setNow(Date.now()), 60000);
+        const interval = setInterval(() => setNow(Date.now()), hasSoonLockedCard ? 1000 : 60000);
         return () => clearInterval(interval);
-    }, []);
+    }, [hasSoonLockedCard]);
+
+    useEffect(() => {
+        if ((!showImagePickerModal && !showCardModal) || !imageQuota?.resetsAt) return;
+        setImageQuotaNow(Date.now());
+        const interval = window.setInterval(() => setImageQuotaNow(Date.now()), 1000);
+        return () => window.clearInterval(interval);
+    }, [showCardModal, showImagePickerModal, imageQuota?.resetsAt]);
+
+    useEffect(() => {
+        setImageQuota(null);
+    }, [user?.id, user?.plan]);
+
+    useEffect(() => {
+        if (!showCardModal) {
+            setShowImagePickerModal(false);
+        }
+    }, [showCardModal]);
 
     // Auto-refresh folders/cards while page is open (no manual refresh needed)
     useEffect(() => {
@@ -312,8 +402,9 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
+                const imageFit = inferImageFit(img.width, img.height);
                 if (!ctx) {
-                    setCardForm(prev => ({ ...prev, image: result }));
+                    setCardForm(prev => ({ ...prev, image: result, imageFit }));
                     return;
                 }
                 ctx.drawImage(img, 0, 0, width, height);
@@ -321,7 +412,7 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
                 const quality = outputType === 'image/jpeg' ? 0.85 : undefined;
                 const dataUrl = canvas.toDataURL(outputType, quality);
-                setCardForm(prev => ({ ...prev, image: dataUrl }));
+                setCardForm(prev => ({ ...prev, image: dataUrl, imageFit }));
             };
             img.onerror = () => setCardForm(prev => ({ ...prev, image: result }));
             img.src = result;
@@ -336,6 +427,67 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
         const used = lim != null ? readCardSentenceDailyCount(uid) : 0;
         return { used, lim };
     }, [user?.id, user?.plan, cardSentenceQuotaTick]);
+
+    const imageQuotaSecondsRemaining = useMemo(() => {
+        if (!imageQuota) return 0;
+        if (imageQuota.resetsAt) {
+            const resetsAtMs = new Date(imageQuota.resetsAt).getTime();
+            if (Number.isFinite(resetsAtMs)) {
+                return Math.max(0, Math.ceil((resetsAtMs - imageQuotaNow) / 1000));
+            }
+        }
+        return Math.max(0, imageQuota.secondsRemaining || 0);
+    }, [imageQuota, imageQuotaNow]);
+
+    const cardImagePlanActive = hasActiveCardImagePlan(user?.plan, isProSubscriber);
+    const cardImageQuotaExhausted =
+        cardImagePlanActive &&
+        imageQuota?.plan === 'silver' &&
+        imageQuota.limit != null &&
+        imageQuota.remaining === 0 &&
+        imageQuotaSecondsRemaining > 0;
+
+    const cardImageButtonState = useMemo(() => {
+        if (!cardImagePlanActive) {
+            return {
+                title: 'مولد الصور بـ AI',
+                subtitle: 'متاح لمشتركي سيلفر وبرو',
+                detail: 'اضغط لمعرفة طريقة التفعيل',
+                exhausted: false,
+            };
+        }
+
+        if (isUnlimitedCardImagePlan(user?.plan)) {
+            return {
+                title: 'مولد الصور بـ AI',
+                subtitle: user?.plan === 'enterprise' ? 'باقتك Enterprise · متاح' : 'باقة برو · متاح',
+                detail: 'استخدم صور المكتبة بدون حد يومي',
+                exhausted: false,
+            };
+        }
+
+        const limit = imageQuota?.plan === 'silver' && imageQuota.limit != null ? imageQuota.limit : 15;
+        const used = imageQuota?.plan === 'silver' ? Math.min(imageQuota.used ?? 0, limit) : 0;
+        const remaining = imageQuota?.plan === 'silver' && imageQuota.remaining != null
+            ? Math.max(0, imageQuota.remaining)
+            : limit;
+
+        if (remaining <= 0) {
+            return {
+                title: 'مولد الصور بـ AI',
+                subtitle: `استخدمت ${used || limit}/${limit} صورة اليوم`,
+                detail: `يتجدد الحد ${formatImageQuotaResetText(imageQuotaSecondsRemaining)}`,
+                exhausted: true,
+            };
+        }
+
+        return {
+            title: 'مولد الصور بـ AI',
+            subtitle: remaining === limit ? `لديك ${limit} صورة اليوم` : `متبقي ${remaining} من ${limit} صورة اليوم`,
+            detail: used > 0 ? `تم استخدام ${used} صورة حتى الآن` : 'يتم احتساب الصورة عند الضغط على استخدم الصورة',
+            exhausted: false,
+        };
+    }, [cardImagePlanActive, imageQuota, imageQuotaSecondsRemaining, user?.plan]);
 
     const handleGenerateSentenceClick = async () => {
         const isPaid = user?.plan === 'pro' || user?.plan === 'silver' || user?.plan === 'enterprise';
@@ -398,17 +550,119 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
         }
     };
 
+    const searchCardImageAssets = async (rawQuery: string) => {
+        const query = rawQuery.trim();
+        if (!query) {
+            showToast('اكتب الكلمة في الوجه الأمامي أولاً عشان أبحث لها عن صورة مناسبة.', 'error');
+            return;
+        }
+
+        if (!hasActiveCardImagePlan(user?.plan, isProSubscriber)) {
+            showToast('مولد الصور بـ AI متاح لمشتركي سيلفر وبرو. اشترك وستقدر تضيف صور جاهزة للكروت بسرعة.', 'info');
+            return;
+        }
+
+        setImageSearchText(query);
+        setImageSearchLoading(true);
+        setImagePickerError('');
+
+        try {
+            const res = (await CardImageAssetAPI.search(targetLanguage, query)) as {
+                assets?: CardImageAsset[];
+                quota?: CardImageQuota;
+            };
+            const nextAssets = Array.isArray(res.assets) ? res.assets : [];
+            setImageAssets(nextAssets);
+            setImageQuota(res.quota ?? null);
+            if (nextAssets.length === 0) {
+                setImagePickerError('لا توجد صورة مناسبة لهذه الكلمة في المكتبة حالياً.');
+            }
+        } catch (error: any) {
+            const quota = (error?.data as { quota?: CardImageQuota } | undefined)?.quota;
+            if (quota) setImageQuota(quota);
+            setImageAssets([]);
+            const quotaSeconds = Math.max(0, quota?.secondsRemaining || 0);
+            const message = quota?.plan === 'silver' && quota.limit != null && quota.remaining === 0
+                ? `وصلت إلى ${quota.used}/${quota.limit} صورة اليوم في باقة سيلفر. يتجدد الحد ${formatImageQuotaResetText(quotaSeconds)}.`
+                : (error?.message || 'تعذر تحميل صور هذه الكلمة حالياً.');
+            setImagePickerError(message);
+            showToast(message, error?.status === 403 || error?.status === 429 ? 'info' : 'error');
+        } finally {
+            setImageSearchLoading(false);
+        }
+    };
+
+    const handleOpenCardImagePicker = async () => {
+        if (isSavingCard) return;
+
+        const query = cardForm.front.trim();
+        if (!query) {
+            showToast('اكتب الكلمة في الوجه الأمامي أولاً، وبعدها افتح مولد الصور.', 'error');
+            return;
+        }
+
+        if (!hasActiveCardImagePlan(user?.plan, isProSubscriber)) {
+            showToast('مولد الصور بـ AI متاح للمشتركين. سيلفر يمنحك 15 صورة يومياً، وبرو يفتح الاستخدام بدون حد يومي.', 'info');
+            return;
+        }
+
+        if (cardImageQuotaExhausted) {
+            const limit = imageQuota?.limit ?? 15;
+            showToast(`استخدمت ${imageQuota?.used ?? limit}/${limit} صورة اليوم في سيلفر. يتجدد الحد ${formatImageQuotaResetText(imageQuotaSecondsRemaining)}.`, 'info');
+            return;
+        }
+
+        setShowImagePickerModal(true);
+        setImageAssets([]);
+        setImageQuota(null);
+        setImagePickerError('');
+        await searchCardImageAssets(query);
+    };
+
+    const handleUseCardImageAsset = async (asset: CardImageAsset) => {
+        if (imageUseLoadingId) return;
+
+        setImageUseLoadingId(asset.id);
+        try {
+            const res = (await CardImageAssetAPI.use(targetLanguage, asset.id)) as {
+                asset?: CardImageAsset;
+                quota?: CardImageQuota;
+            };
+            const selectedAsset = res.asset ?? asset;
+            const nextQuota = res.quota ?? null;
+            setImageQuota(nextQuota);
+            setCardForm(prev => ({ ...prev, image: resolveMediaUrl(selectedAsset.imageUrl) }));
+            setShowImagePickerModal(false);
+            if (nextQuota?.plan === 'silver' && nextQuota.limit != null && nextQuota.remaining === 0) {
+                showToast(`تم وضع الصورة داخل البطاقة. وصلت إلى ${nextQuota.used}/${nextQuota.limit} صورة اليوم، ويتجدد الحد ${formatImageQuotaResetText(nextQuota.secondsRemaining)}.`, 'info');
+            } else {
+                showToast('تم وضع الصورة داخل البطاقة. راجعها ثم احفظ البطاقة.', 'success');
+            }
+        } catch (error: any) {
+            const quota = (error?.data as { quota?: CardImageQuota } | undefined)?.quota;
+            if (quota) setImageQuota(quota);
+            const quotaSeconds = Math.max(0, quota?.secondsRemaining || 0);
+            const message = quota?.plan === 'silver' && quota.limit != null && quota.remaining === 0
+                ? `وصلت إلى ${quota.used}/${quota.limit} صورة اليوم في باقة سيلفر. يتجدد الحد ${formatImageQuotaResetText(quotaSeconds)}.`
+                : (error?.message || 'تعذر استخدام الصورة حالياً.');
+            setImagePickerError(message);
+            showToast(message, quota?.remaining === 0 ? 'info' : 'error');
+        } finally {
+            setImageUseLoadingId(null);
+        }
+    };
+
     const openNewCardModal = () => {
         setIsSavingCard(false);
         setEditingCardId(null);
-        setCardForm({ front: '', back: '', image: '' });
+        setCardForm({ front: '', back: '', image: '', imageFit: 'wide' });
         setShowCardModal(true);
     };
 
     const openEditCardModal = (card: Card) => {
         setIsSavingCard(false);
         setEditingCardId(card.id);
-        setCardForm({ front: card.frontText, back: card.backText, image: card.frontImage || '' });
+        setCardForm({ front: card.frontText, back: card.backText, image: card.frontImage || '', imageFit: resolveCardImageFit(card) });
         setShowCardModal(true);
     };
 
@@ -432,19 +686,19 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
         setIsSavingCard(true);
         try {
             if (editingCardId) {
-                await Promise.resolve(onEditCard(editingCardId, { frontText: front, backText: back, frontImage: cardForm.image }));
+                await Promise.resolve(onEditCard(editingCardId, { frontText: front, backText: back, frontImage: cardForm.image, frontImageFit: cardForm.imageFit }));
                 showToast('تم تعديل البطاقة بنجاح! ✅', 'success');
             } else {
-                const payload = { folderId: currentFolderId, frontText: front, backText: back, frontImage: cardForm.image };
+                const payload = { folderId: currentFolderId, frontText: front, backText: back, frontImage: cardForm.image, frontImageFit: cardForm.imageFit };
                 const addResult = await Promise.resolve(onAddCard(payload));
                 if (addResult === 'pro_limit') {
                     setShowCardModal(false);
-                    setCardForm({ front: '', back: '', image: '' });
+                    setCardForm({ front: '', back: '', image: '', imageFit: 'wide' });
                     return;
                 }
                 if (addResult !== true) return;
             }
-            setCardForm({ front: '', back: '', image: '' });
+            setCardForm({ front: '', back: '', image: '', imageFit: 'wide' });
             setShowCardModal(false);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : 'تعذر حفظ البطاقة';
@@ -757,63 +1011,102 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 </div>
             </div>
 
-            <div className="space-y-3 md:space-y-6 pt-2 md:pt-4 w-full overflow-hidden">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 md:gap-4">
-                    <h3 className="text-lg md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3 md:gap-4">
-                        <div className="w-1.5 md:w-2 h-6 md:h-8 bg-primary rounded-full" />
-                        المجلدات الفرعية
-                    </h3>
-                    {(() => {
-                        if (currentFolder?.isSystem || (currentFolder && !canUserManageFolder(currentFolder, user))) {
-                            return null;
-                        }
-                        if (!isProSubscriber) {
-                            return (
-                                <div
-                                    className="w-auto max-w-md text-right flex flex-col gap-1 text-amber-800 dark:text-amber-200/90 font-bold bg-amber-50 dark:bg-amber-950/50 px-3 py-2 md:px-5 md:py-3 rounded-xl md:rounded-2xl text-[10px] md:text-xs border border-amber-200/80 dark:border-amber-500/25"
-                                    title="الخطة المجانية لا تدعم المجلدات الفرعية"
-                                >
-                                    <span className="font-black text-amber-900 dark:text-amber-100">مجلد داخل مجلد — لمشتركي Pro فقط</span>
-                                    <span className="opacity-90 font-semibold">المجاني: مجلدات رئيسية فقط (3 لكل لغة)، 10 بطاقات لكل مجلد.</span>
+            <div className="pt-2 md:pt-4 w-full overflow-hidden">
+
+                {/* ── Header row — button on mobile, plain on desktop ── */}
+                <div className="flex items-center justify-between gap-2 md:gap-4 mb-3 md:mb-6">
+
+                    {/* Title — clickable only on mobile */}
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 md:gap-4 flex-1 text-right md:cursor-default focus:outline-none group"
+                        onClick={() => setSubFoldersOpen(prev => !prev)}
+                        aria-expanded={subFoldersOpen}
+                    >
+                        {/* Colored bar */}
+                        <div className="w-1.5 md:w-2 h-6 md:h-8 bg-primary rounded-full shrink-0" />
+
+                        <h3 className="text-lg md:text-2xl font-black text-gray-900 dark:text-white">
+                            المجلدات الفرعية
+                        </h3>
+
+                        {/* Count badge */}
+                        {subFolders.length > 0 && (
+                            <span className="text-[10px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                {subFolders.length}
+                            </span>
+                        )}
+
+                        {/* Chevron — only on mobile */}
+                        <ChevronDown
+                            size={18}
+                            className={`md:hidden text-gray-400 transition-transform duration-300 ease-in-out mr-auto ${
+                                subFoldersOpen ? 'rotate-180 text-primary' : 'rotate-0'
+                            }`}
+                        />
+                    </button>
+
+                    {/* Right action (add subfolder / pro badge) — always visible */}
+                    <div className="shrink-0">
+                        {(() => {
+                            if (currentFolder?.isSystem || (currentFolder && !canUserManageFolder(currentFolder, user))) {
+                                return null;
+                            }
+                            if (!isProSubscriber) {
+                                return (
+                                    <div
+                                        className="w-auto max-w-md text-right flex flex-col gap-1 text-amber-800 dark:text-amber-200/90 font-bold bg-amber-50 dark:bg-amber-950/50 px-3 py-2 md:px-5 md:py-3 rounded-xl md:rounded-2xl text-[10px] md:text-xs border border-amber-200/80 dark:border-amber-500/25"
+                                        title="الخطة المجانية لا تدعم المجلدات الفرعية"
+                                    >
+                                        <span className="font-black text-amber-900 dark:text-amber-100">مجلد داخل مجلد — Pro فقط</span>
+                                    </div>
+                                );
+                            }
+                            const currentDepth = getFolderDepth(currentFolderId, folders);
+                            const canAddSubfolder = currentDepth < MAX_FOLDER_DEPTH && !!currentFolder && canUserManageFolder(currentFolder, user);
+                            return canAddSubfolder ? (
+                                <button onClick={handleOpenAddFolder} className="flex items-center justify-center gap-1.5 md:gap-2 text-primary font-black bg-primary/5 px-3 py-2 md:px-6 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary hover:text-white transition shadow-sm text-xs md:text-sm">
+                                    <Plus size={16} className="md:w-5 md:h-5" /> <span className="hidden sm:inline">إضافة مجلد فرعي</span>
+                                </button>
+                            ) : (
+                                <div className="flex items-center justify-center gap-2 text-gray-400 font-black bg-gray-100 dark:bg-gray-800 px-3 py-2 md:px-6 md:py-3.5 rounded-xl md:rounded-2xl text-xs md:text-sm cursor-not-allowed border-2 border-dashed border-gray-200 dark:border-gray-700" title="وصلت للحد الأقصى من التداخل">
+                                    <FolderIcon size={16} className="opacity-50 md:w-[18px]" />
+                                    <span className="hidden sm:inline">الحد الأقصى للتداخل</span>
                                 </div>
                             );
-                        }
-                        const currentDepth = getFolderDepth(currentFolderId, folders);
-                        const canAddSubfolder = currentDepth < MAX_FOLDER_DEPTH && !!currentFolder && canUserManageFolder(currentFolder, user);
-                        return canAddSubfolder ? (
-                            <button onClick={handleOpenAddFolder} className="w-auto flex items-center justify-center gap-1.5 md:gap-2 text-primary font-black bg-primary/5 px-3 py-2 md:px-6 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary hover:text-white transition shadow-sm text-xs md:text-sm">
-                                <Plus size={16} className="md:w-5 md:h-5" /> <span className="hidden sm:inline">إضافة مجلد فرعي</span>
-                            </button>
-                        ) : (
-                            <div className="w-auto flex items-center justify-center gap-2 text-gray-400 font-black bg-gray-100 dark:bg-gray-800 px-3 py-2 md:px-6 md:py-3.5 rounded-xl md:rounded-2xl text-xs md:text-sm cursor-not-allowed border-2 border-dashed border-gray-200 dark:border-gray-700" title="وصلت للحد الأقصى من التداخل (مجلدان فرعيان فقط)">
-                                <FolderIcon size={16} className="opacity-50 md:w-[18px]" />
-                                <span className="hidden sm:inline">الحد الأقصى للتداخل</span>
-                                <span className="text-[10px] bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full hidden sm:inline">مستويان فقط</span>
-                            </div>
-                        );
-                    })()}
+                        })()}
+                    </div>
                 </div>
 
-                {subFolders.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
-                        {subFolders.map(folder => (
-                            <FolderItem
-                                key={folder.id}
-                                folder={folder}
-                                stats={getCurrentStats(folder.id)}
-                                onClick={() => setCurrentFolderId(folder.id)}
-                                onEdit={handleOpenEditFolder}
-                                onDelete={() => handleDeleteClick(folder.id, folder.name)}
-                                canManage={canUserManageFolder(folder, user)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="p-3 md:p-16 rounded-xl md:rounded-[3rem] border border-dashed md:border-4 border-stone-200 dark:border-gray-800/50 flex flex-row md:flex-col items-center justify-center md:gap-0 gap-2 text-gray-400 bg-stone-50/50 dark:bg-gray-800/10">
-                        <FolderIcon size={18} className="md:mb-4 opacity-50 md:opacity-20 md:w-12 md:h-12" />
-                        <p className="font-bold md:font-black text-[11px] md:text-lg">لا يوجد مجلدات فرعية هنا</p>
-                    </div>
-                )}
+                {/* ── Content — animated on mobile, always visible on desktop ── */}
+                <div
+                    className={`overflow-hidden transition-all duration-300 ease-in-out md:overflow-visible ${
+                        subFoldersOpen
+                            ? 'max-h-[800px] opacity-100'
+                            : 'max-h-0 opacity-0 md:max-h-none md:opacity-100'
+                    }`}
+                >
+                    {subFolders.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+                            {subFolders.map(folder => (
+                                <FolderItem
+                                    key={folder.id}
+                                    folder={folder}
+                                    stats={getCurrentStats(folder.id)}
+                                    onClick={() => setCurrentFolderId(folder.id)}
+                                    onEdit={handleOpenEditFolder}
+                                    onDelete={() => handleDeleteClick(folder.id, folder.name)}
+                                    canManage={canUserManageFolder(folder, user)}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-3 md:p-16 rounded-xl md:rounded-[3rem] border border-dashed md:border-4 border-stone-200 dark:border-gray-800/50 flex flex-row md:flex-col items-center justify-center md:gap-0 gap-2 text-gray-400 bg-stone-50/50 dark:bg-gray-800/10">
+                            <FolderIcon size={18} className="md:mb-4 opacity-50 md:opacity-20 md:w-12 md:h-12" />
+                            <p className="font-bold md:font-black text-[11px] md:text-lg">لا يوجد مجلدات فرعية هنا</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="h-px bg-stone-100 dark:bg-gray-800 my-2 md:my-4" />
@@ -1019,12 +1312,14 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                 {filteredCards.length > 0 ? (
                     <>
                         {/* Changed grid-cols-1 to grid-cols-2 for mobile viewing */}
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(14rem,17rem))] xl:grid-cols-[repeat(auto-fill,minmax(15rem,18rem))] justify-start gap-3 md:gap-4">
                             {visibleCards.map(card => {
                                 const isFlipped = flippedCardIds.includes(card.id);
                                 const isSelected = selectedCards.has(card.id);
                                 const cardFolder = folders.find(f => f.id === card.folderId);
                                 const canEditCard = canUserManageCard(card, cardFolder, user);
+                                const imageFit = resolveCardImageFit(card);
+                                const isPortraitImage = imageFit === 'portrait';
                                 return (
                                     <div
                                         key={card.id}
@@ -1039,10 +1334,16 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                                 toggleCardFlip(card.id, e);
                                             }
                                         }}
-                                        className="group h-48 md:h-64 perspective-1000 cursor-pointer content-auto contain-intrinsic focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                                        className={`group perspective-1000 cursor-pointer content-auto contain-intrinsic focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
+                                            isPortraitImage
+                                                ? 'h-72 md:h-[22rem] w-full max-w-[18rem]'
+                                                : 'h-48 md:h-64 w-full'
+                                        }`}
                                     >
                                         <div className={`relative w-full h-full transition-all duration-500 transform-style-3d flip-card ${isFlipped ? 'rotate-y-180' : ''}`}>
-                                            <div className="absolute inset-0 backface-hidden bg-white dark:bg-dark-card rounded-2xl md:rounded-3xl p-3 md:p-6 shadow-warm dark:shadow-none border border-stone-100 dark:border-dark-border flex flex-col hover:shadow-warm-hover dark:hover:border-gray-600 transition overflow-hidden">
+                                            <div className={`absolute inset-0 backface-hidden bg-gradient-to-br from-white via-stone-50 to-slate-100 dark:from-slate-800 dark:via-slate-900 dark:to-gray-900 rounded-2xl md:rounded-3xl shadow-warm dark:shadow-none border border-stone-100 dark:border-slate-700/70 flex flex-col hover:shadow-warm-hover dark:hover:border-slate-500/80 transition overflow-hidden ${
+                                                isPortraitImage ? 'p-3 md:p-4' : 'p-3 md:p-6'
+                                            }`}>
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
@@ -1065,10 +1366,24 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                                     {card.nextReview > now ? <CountdownTimer nextReview={card.nextReview} now={now} /> : <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black animate-bounce shadow-sm"><Zap size={12} fill="currentColor" /></div>}
                                                 </div>
                                                 <div className="flex flex-col h-full w-full">
-                                                    <h3 className="text-sm md:text-xl xl:text-2xl font-black text-gray-800 dark:text-white text-center line-clamp-2 leading-tight">{card.frontText}</h3>
-                                                    <div className="mt-2 md:mt-4 flex-1 w-full rounded-xl md:rounded-2xl overflow-hidden border border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-inner">
+                                                    <h3 className="pt-7 md:pt-6 px-8 md:px-10 text-sm md:text-xl xl:text-2xl font-black text-gray-800 dark:text-white text-center line-clamp-2 leading-tight">{card.frontText}</h3>
+                                                    <div className={`mt-2 flex-1 w-full rounded-xl md:rounded-2xl overflow-hidden border border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-inner relative ${isPortraitImage ? 'p-1.5 md:p-2' : ''}`}>
                                                         {card.frontImage ? (
-                                                            <img src={card.frontImage} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
+                                                            <div className="relative z-[1] w-full h-full flex items-center justify-center">
+                                                                <img src={card.frontImage} className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-25 transition-transform duration-700 ease-out group-hover:scale-[1.16]" alt="" aria-hidden="true" />
+                                                                <img
+                                                                    src={card.frontImage}
+                                                                    className={
+                                                                        isPortraitImage
+                                                                            ? 'relative z-[1] h-full max-h-full w-auto max-w-[80%] rounded-lg bg-white/85 dark:bg-white/10 object-contain p-0.5 shadow-lg ring-1 ring-white/50 dark:ring-white/10 transition-transform duration-700 ease-out group-hover:scale-[1.045]'
+                                                                            : 'relative z-[1] w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]'
+                                                                    }
+                                                                    alt=""
+                                                                    loading="lazy"
+                                                                    decoding="async"
+                                                                    onLoad={(event) => handleCardImageLoad(card.id, event)}
+                                                                />
+                                                            </div>
                                                         ) : (
                                                             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-300 dark:text-gray-600">
                                                                 <ImageIcon size={28} className="opacity-70" />
@@ -1076,8 +1391,8 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="mt-2 md:mt-3 w-full flex items-center justify-between text-gray-400">
-                                                        <button onClick={(e) => { e.stopPropagation(); speakText(card.frontText); }} aria-label="تشغيل النطق للوجه الأمامي" className="hover:text-primary transition p-1 md:p-2"><Volume2 size={20} className="w-5 h-5 md:w-6 md:h-6" /></button>
+                                                    <div className="mt-3 md:mt-4 w-full flex items-center justify-between text-gray-400">
+                                                        <button onClick={(e) => { e.stopPropagation(); speakCardText(card.frontText); }} aria-label="تشغيل النطق للوجه الأمامي" className="hover:text-primary transition p-1 md:p-2"><Volume2 size={20} className="w-5 h-5 md:w-6 md:h-6" /></button>
                                                         <div className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold">
                                                             <RotateCw size={14} className="opacity-70 group-hover:opacity-100 transition md:w-4 md:h-4" />
                                                             <span>اضغط للقلب</span>
@@ -1085,10 +1400,17 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gray-900 dark:bg-black rounded-2xl md:rounded-3xl p-3 md:p-6 shadow-2xl border-2 md:border-4 border-gray-800 flex flex-col items-center justify-center text-white">
-                                                <h3 className="text-sm md:text-xl font-bold text-center line-clamp-4 leading-relaxed">{card.backText}</h3>
+                                            <div className="absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-slate-800 via-slate-900 to-gray-900 dark:from-slate-800 dark:via-gray-900 dark:to-black rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl border border-slate-600/50 flex flex-col items-center text-white overflow-hidden">
+                                                <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-primary/10 blur-3xl" />
+                                                <div className="absolute -bottom-20 -left-16 w-44 h-44 rounded-full bg-blue-400/10 blur-3xl" />
+                                                <div className="relative z-[1] w-full flex-1 flex flex-col items-center justify-center gap-3 md:gap-5 pt-4">
+                                                    <p className="max-w-full px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] md:text-xs font-black text-amber-200 text-center line-clamp-1">
+                                                        {card.frontText}
+                                                    </p>
+                                                    <h3 className="text-base md:text-2xl font-black text-center line-clamp-4 leading-relaxed text-white">{card.backText}</h3>
+                                                </div>
                                                 <div className="mt-auto flex items-center gap-2 md:gap-4">
-                                                    <button onClick={(e) => { e.stopPropagation(); speakText(card.backText); }} aria-label="تشغيل النطق للوجه الخلفي" className="hover:text-primary transition p-2"><Volume2 size={20} className="w-5 h-5 md:w-6 md:h-6" /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); speakCardText(card.backText); }} aria-label="تشغيل النطق للوجه الخلفي" className="hover:text-primary transition p-2"><Volume2 size={20} className="w-5 h-5 md:w-6 md:h-6" /></button>
                                                     {canEditCard && (
                                                         <>
                                                             <button type="button" onClick={(e) => { e.stopPropagation(); openEditCardModal(card); }} aria-label="تعديل البطاقة" className="text-gray-500 hover:text-blue-400 transition p-2"><Edit2 size={20} className="w-5 h-5 md:w-6 md:h-6" /></button>
@@ -1148,10 +1470,29 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-500 mb-2">صورة توضيحية (اختياري)</label>
-                                <label className={`cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary dark:hover:border-primary rounded-xl p-6 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary transition min-h-[8rem] ${isSavingCard ? 'pointer-events-none opacity-50' : ''}`}>
-                                    <ImageIcon size={28} /> <span className="text-sm font-bold text-center">رفع صورة من جهازك</span>
-                                    <input type="file" accept="image/*" className="hidden" disabled={isSavingCard} onChange={handleImageUpload} />
-                                </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <label className={`cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-primary dark:hover:border-primary rounded-xl p-5 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-primary transition min-h-[8rem] ${isSavingCard ? 'pointer-events-none opacity-50' : ''}`}>
+                                        <ImageIcon size={28} /> <span className="text-sm font-bold text-center">رفع صورة من جهازك</span>
+                                        <input type="file" accept="image/*" className="hidden" disabled={isSavingCard} onChange={handleImageUpload} />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleOpenCardImagePicker()}
+                                        disabled={isSavingCard || imageSearchLoading}
+                                        className={`border-2 rounded-xl p-5 min-h-[8rem] flex flex-col items-center justify-center gap-2 font-black transition disabled:opacity-50 ${
+                                            cardImageButtonState.exhausted
+                                                ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 hover:border-rose-400'
+                                                : cardImagePlanActive
+                                                    ? 'border-emerald-200 dark:border-emerald-800 hover:border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                                    : 'border-amber-200 dark:border-amber-800 hover:border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                                        }`}
+                                    >
+                                        {imageSearchLoading ? <Loader2 size={28} className="animate-spin" /> : <Sparkles size={28} />}
+                                        <span className="text-sm text-center">{cardImageButtonState.title}</span>
+                                        <span className="text-[11px] font-black opacity-90 text-center">{cardImageButtonState.subtitle}</span>
+                                        <span className="text-[10px] font-bold opacity-75 text-center leading-relaxed">{cardImageButtonState.detail}</span>
+                                    </button>
+                                </div>
                                 <div className="mt-4">
                                     {cardSentenceQuota.lim != null && (
                                         <p className={`text-xs font-bold text-center mb-2 ${cardSentenceQuota.used >= cardSentenceQuota.lim ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-gray-400'}`}>
@@ -1194,12 +1535,49 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                                 <X size={12} /> إزالة
                                             </button>
                                         </div>
-                                        <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border-2 border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-lg">
-                                            <img src={cardForm.image} alt="معاينة الصورة" className="absolute inset-0 w-full h-full object-cover" />
-                                            <div className="absolute inset-0 ring-1 ring-black/5 dark:ring-white/10" />
-                                            <div className="absolute bottom-3 right-3 text-[10px] font-black text-white bg-black/40 px-2.5 py-1 rounded-full">معاينة</div>
+
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            {CARD_IMAGE_FIT_OPTIONS.map((option) => {
+                                                const selected = cardForm.imageFit === option.value;
+                                                return (
+                                                    <button
+                                                        key={option.value}
+                                                        type="button"
+                                                        disabled={isSavingCard}
+                                                        onClick={() => setCardForm(prev => ({ ...prev, imageFit: option.value }))}
+                                                        className={`rounded-2xl border-2 p-3 text-right transition disabled:opacity-50 ${
+                                                            selected
+                                                                ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                                                                : 'border-stone-200 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 text-gray-500 hover:border-primary/40'
+                                                        }`}
+                                                    >
+                                                        <span className="block text-sm font-black">{option.label}</span>
+                                                        <span className="block text-[10px] font-bold mt-1 leading-4 opacity-80">{option.description}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
-                                        <p className="mt-2 text-[11px] font-bold text-gray-400">يتم قص الصورة تلقائياً لتناسب البطاقة.</p>
+
+                                        <div className={`relative mx-auto rounded-2xl overflow-hidden border-2 border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800 shadow-lg transition-all duration-300 ${
+                                            cardForm.imageFit === 'portrait'
+                                                ? 'aspect-[9/16] max-w-[180px]'
+                                                : 'aspect-video w-full'
+                                        }`}>
+                                            <img src={cardForm.image} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30" aria-hidden="true" />
+                                            <img
+                                                src={cardForm.image}
+                                                alt="معاينة الصورة"
+                                                className={cardForm.imageFit === 'portrait'
+                                                    ? 'absolute inset-0 m-auto h-full w-auto max-w-full object-contain p-2'
+                                                    : 'absolute inset-0 w-full h-full object-cover'
+                                                }
+                                            />
+                                            <div className="absolute inset-0 ring-1 ring-black/5 dark:ring-white/10" />
+                                            <div className="absolute bottom-3 right-3 text-[10px] font-black text-white bg-black/40 px-2.5 py-1 rounded-full">
+                                                {cardForm.imageFit === 'portrait' ? 'معاينة طولية' : 'معاينة عريضة'}
+                                            </div>
+                                        </div>
+                                        <p className="mt-2 text-[11px] font-bold text-gray-400">اختر الشكل الأقرب لمقاس الصورة قبل حفظ البطاقة.</p>
                                     </div>
                                 )}
                             </div>
@@ -1220,6 +1598,133 @@ export const FoldersView: React.FC<FoldersViewProps> = ({
                                     'إضافة البطاقة'
                                 )}
                             </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {showImagePickerModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-black/70 z-[10070] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-dark-card w-full max-w-3xl rounded-[2rem] shadow-2xl border border-stone-100 dark:border-gray-700 max-h-[88vh] overflow-hidden flex flex-col">
+                        <div className="p-5 md:p-6 border-b border-stone-100 dark:border-gray-700 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-black text-gray-800 dark:text-white flex items-center gap-2">
+                                    <Sparkles size={22} className="text-emerald-500" />
+                                    مولد الصور بـ AI
+                                </h3>
+                                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 font-bold mt-1">
+                                    {targetLanguage === 'de' ? 'مكتبة الصور الألمانية' : 'مكتبة الصور الإنجليزية'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowImagePickerModal(false)}
+                                disabled={!!imageUseLoadingId}
+                                className="p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-gray-800 transition disabled:opacity-50"
+                                aria-label="إغلاق"
+                            >
+                                <X className="text-gray-400 hover:text-red-500" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 md:p-6 border-b border-stone-100 dark:border-gray-700 space-y-4">
+                            <form
+                                onSubmit={(event) => {
+                                    event.preventDefault();
+                                    void searchCardImageAssets(imageSearchText);
+                                }}
+                                className="flex flex-col sm:flex-row gap-3"
+                            >
+                                <input
+                                    type="text"
+                                    value={imageSearchText}
+                                    onChange={(event) => setImageSearchText(event.target.value)}
+                                    disabled={imageSearchLoading || !!imageUseLoadingId}
+                                    className="flex-1 bg-stone-50 dark:bg-gray-800 border-2 border-stone-200 dark:border-transparent focus:border-emerald-400 p-4 rounded-xl outline-none font-bold dark:text-white transition disabled:opacity-60"
+                                    placeholder="تفاحة / apple / der Apfel"
+                                    dir="auto"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={imageSearchLoading || !!imageUseLoadingId}
+                                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-6 py-4 rounded-xl font-black transition flex items-center justify-center gap-2"
+                                >
+                                    {imageSearchLoading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                                    بحث
+                                </button>
+                            </form>
+
+                            {imageQuota && (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-black">
+                                    {imageQuota.limit == null ? (
+                                        <span className="text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 rounded-xl">
+                                            {imageQuota.plan === 'enterprise' ? 'باقة Enterprise' : 'باقة برو'} · استخدام الصور متاح بدون حد يومي
+                                        </span>
+                                    ) : (
+                                        <span className={`px-3 py-2 rounded-xl ${imageQuota.remaining === 0 ? 'text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20' : 'text-gray-600 dark:text-gray-300 bg-stone-100 dark:bg-gray-800'}`}>
+                                            {imageQuota.remaining === 0
+                                                ? `استخدمت ${imageQuota.used}/${imageQuota.limit} صورة اليوم`
+                                                : `متبقي ${imageQuota.remaining} من ${imageQuota.limit} صورة اليوم`}
+                                        </span>
+                                    )}
+                                    {imageQuota.limit != null && imageQuota.remaining === 0 && (
+                                        <span className="text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 rounded-xl flex items-center gap-2">
+                                            <Clock size={14} />
+                                            يتجدد الحد {formatImageQuotaResetText(imageQuotaSecondsRemaining)}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-5 md:p-6 overflow-y-auto custom-scrollbar min-h-[260px]">
+                            {imageSearchLoading ? (
+                                <div className="min-h-[260px] flex flex-col items-center justify-center text-gray-400 gap-3">
+                                    <Loader2 size={34} className="animate-spin text-emerald-500" />
+                                    <p className="text-sm font-black">جاري البحث عن صور مناسبة...</p>
+                                </div>
+                            ) : imageAssets.length === 0 ? (
+                                <div className="min-h-[260px] border-2 border-dashed border-stone-200 dark:border-gray-700 rounded-2xl flex flex-col items-center justify-center text-center p-6">
+                                    <ImageIcon size={38} className="text-gray-300 dark:text-gray-600 mb-3" />
+                                    <p className="text-gray-700 dark:text-gray-200 font-black">
+                                        {imagePickerError || 'اكتب كلمة وابحث عن صورة مناسبة.'}
+                                    </p>
+                                    {imageQuota?.limit != null && imageQuota.remaining === 0 && (
+                                        <p className="text-xs text-rose-500 font-bold mt-2">
+                                            يتجدد حد سيلفر {formatImageQuotaResetText(imageQuotaSecondsRemaining)}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {imageAssets.map((asset) => {
+                                        const imageUrl = resolveMediaUrl(asset.imageUrl);
+                                        const quotaBlocked = imageQuota?.limit != null && imageQuota.remaining === 0;
+                                        return (
+                                            <article key={asset.id} className="rounded-2xl overflow-hidden border border-stone-100 dark:border-gray-700 bg-stone-50 dark:bg-gray-800">
+                                                <div className="relative aspect-video overflow-hidden bg-white/70 dark:bg-gray-900">
+                                                    <img src={imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-25" aria-hidden="true" />
+                                                    <img src={imageUrl} alt={asset.arLabel} className="relative z-[1] w-full h-full object-contain p-3" />
+                                                </div>
+                                                <div className="p-4">
+                                                    <p className="font-black text-gray-800 dark:text-white truncate">{asset.arLabel}</p>
+                                                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-300 truncate" dir="ltr">{asset.targetWord}</p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleUseCardImageAsset(asset)}
+                                                        disabled={!!imageUseLoadingId || quotaBlocked}
+                                                        className="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-xl font-black transition flex items-center justify-center gap-2"
+                                                    >
+                                                        {imageUseLoadingId === asset.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                                        استخدم الصورة
+                                                    </button>
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>,

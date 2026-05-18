@@ -23,11 +23,11 @@ export const LoadingScreen = () => {
 
         <div className="flex flex-col items-center gap-2">
           <div className="flex flex-col items-center">
-            <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-700 dark:from-white dark:to-slate-200 tracking-tight" style={{ fontFamily: 'Noto Kufi Arabic, sans-serif' }}>
-              اتعلم بالعربي
+            <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-700 dark:from-white dark:to-slate-200 tracking-tight" style={{ fontFamily: 'var(--font-arabic)' }}>
+              مفتاح اللغة
             </h1>
             <span className="text-amber-500 font-bold tracking-widest text-sm mt-2 opacity-90">
-              (أمة اقرأ)
+              KeyLang
             </span>
           </div>
 
@@ -36,7 +36,7 @@ export const LoadingScreen = () => {
           </div>
 
           <span className="mt-4 text-xs font-bold text-slate-400 dark:text-slate-500 animate-pulse">
-            جارِ تجهيز تجربة التعلم...
+            جارِ تجهيز لوحة تحكم مفتاح اللغة...
           </span>
         </div>
       </div>

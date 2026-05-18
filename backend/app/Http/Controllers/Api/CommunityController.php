@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class CommunityController extends Controller
 {
-    /** يطابق صيغة XP في الواجهة: مراجعات×2 + متقنة×5 + قصص×10 + إجمالي الكويزات */
-    private function xpFromParts(int $reviews, int $mastered, int $stories, int $quizTotal): int
+    /** يطابق صيغة لوحة الشرف: نشاط البطاقات + القصص + الكويزات + XP الألعاب المكتسب فعلياً. */
+    private function xpFromParts(int $reviews, int $mastered, int $stories, int $quizTotal, int $gameXp): int
     {
-        return ($reviews * 2) + ($mastered * 5) + ($stories * 10) + $quizTotal;
+        return ($reviews * 2) + ($mastered * 5) + ($stories * 10) + $quizTotal + $gameXp;
     }
 
     private function normalizeLang(string $lang): ?string
@@ -39,6 +39,14 @@ class CommunityController extends Controller
 
         $syncStats = UserCommunityStat::query()->where('lang', $lang)->get()->mapWithKeys(fn ($row) => [(int) $row->user_id => $row]);
 
+        $gameStats = DB::table('game_attempts')
+            ->where('lang', $lang)
+            ->whereNotNull('completed_at')
+            ->groupBy('user_id')
+            ->selectRaw('user_id, SUM(xp_earned) as game_xp')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->user_id => $row]);
+
         $idsFromProfile = User::query()
             ->where('target_language', $lang)
             ->pluck('id')
@@ -46,6 +54,7 @@ class CommunityController extends Controller
 
         $ids = $cardStats->keys()
             ->merge($syncStats->keys())
+            ->merge($gameStats->keys())
             ->merge($idsFromProfile)
             ->unique()
             ->sort()
@@ -57,6 +66,7 @@ class CommunityController extends Controller
             $uid = (int) $uid;
             $c = $cardStats->get($uid);
             $s = $syncStats->get($uid);
+            $g = $gameStats->get($uid);
 
             $reviews = $c ? (int) $c->sum_reviews : 0;
             $mastered = $c ? (int) $c->mastered_count : 0;
@@ -64,16 +74,18 @@ class CommunityController extends Controller
             $quizTotal = $s ? (int) $s->quiz_total : 0;
             $quizAvg = $s ? (int) $s->quiz_avg_percent : 0;
             $streak = $s ? (int) $s->streak_days : 0;
+            $gameXp = $g ? (int) $g->game_xp : 0;
 
             $rows[] = [
                 'user_id' => $uid,
-                'xp' => $this->xpFromParts($reviews, $mastered, $stories, $quizTotal),
+                'xp' => $this->xpFromParts($reviews, $mastered, $stories, $quizTotal, $gameXp),
                 'streak' => $streak,
                 'stories' => $stories,
                 'mastered' => $mastered,
                 'reviews' => $reviews,
                 'quiz_total' => $quizTotal,
                 'quiz_avg_percent' => $quizAvg,
+                'game_xp' => $gameXp,
             ];
         }
 
@@ -197,6 +209,7 @@ class CommunityController extends Controller
                 'reviews' => $r['reviews'],
                 'quiz_total' => $r['quiz_total'],
                 'quiz_avg_percent' => $r['quiz_avg_percent'],
+                'game_xp' => $r['game_xp'] ?? 0,
                 'is_you' => $u->id === $authId,
             ];
         }
