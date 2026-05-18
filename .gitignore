@@ -3,6 +3,9 @@
 # تبعيات Node (كل الأماكن)
 **/node_modules/
 
+# Node portable (كبير جداً - 66MB+)
+**/node_portable/
+
 # مخرجات البناء (Vite / إلخ)
 **/dist/
 **/dist-ssr/
